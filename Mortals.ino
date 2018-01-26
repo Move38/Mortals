@@ -46,9 +46,6 @@ byte mode = ALIVE;
 Timer healthTimer;
 Timer attackTimer;  // time since first attack to still allow attacking (since it is impossible for all sides to meet at the same time)
 
-#include "blinklib.h"
-#include "blinkstate.h"
-
 void setup() {
   healthTimer.set(1000);
 }
@@ -117,6 +114,9 @@ void draw() {
   }
 }
 
+/*
+ *  lose X seconds when attacked
+ */
 void reduceHealth() {
   if(health > ATTACK_VALUE) {
     health -= ATTACK_VALUE;
@@ -126,6 +126,9 @@ void reduceHealth() {
   }
 }
 
+/*
+ *  gain X seconds from attacking
+ */
 void increaseHealth() {
   if(health < MAX_HEALTH) {
     health += ATTACK_VALUE;
