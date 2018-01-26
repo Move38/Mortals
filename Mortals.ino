@@ -24,19 +24,27 @@
  * 
  */
 
+#include "blinklib.h"
+#include "blinkstate.h"
+
+#define MAX_HEALTH 90
+#define ATTACK_VALUE 5
+
 byte team = 0;
 byte health = 60;
+bool isAttacking = false;
 
 enum state {
   DEAD,
   ALIVE,
   ATTACK,
   INJURED
-}
+};
 
 byte mode = ALIVE;
 
 Timer healthTimer;
+Timer attackTimer;  // time since first attack to still allow attacking (since it is impossible for all sides to meet at the same time)
 
 #include "blinklib.h"
 #include "blinkstate.h"
@@ -51,22 +59,48 @@ void draw() {
     // reset game piece
   }
 
-  if(isAlone) {
-    // show attack mode on all sides
+  if(isAlone()) {
+    isAttacking = true;
     setState(ATTACK);
   }
 
   FOREACH_FACE(f) {
-    if(neighborDidChange(f)) {
-      // if neighbor is attack
-      // reduce health by 5
-      // show injured on that face
-      // animate injury towards the face
+    
+    if(neighborStateChanged(f)) {
+      
+      if(getNeighborState(f) == ATTACK) {
+        
+        // reduce health by attackStrength
+        reduceHealth();
+         
+        // show injured on that face
+        setFaceState(f,INJURED);
+        
+        // animate injury towards the face
+        setFaceColor(f, RED);
+      }
 
       // if I am attack && neighbor == injured
-      // increase health by 5
-      // change state to alive
+      if( isAttacking ) {
+
+        attackTimer.set(100);
+        
+        if( getNeighborState(f) == INJURED ) {
+          
+          // increase health by attackStrength
+          increaseHealth();
+          
+          // change state to alive
+          setFaceState(f, ALIVE);
+        }
+      }
     }
+  }
+
+  if(attackTimer.isComplete()) {
+    isAttacking = false;
+    setState(ALIVE);
+    attackTimer.stop();
   }
 
   // reduce health with time 1 unit every 1000ms
@@ -82,3 +116,22 @@ void draw() {
     // DEAD
   }
 }
+
+void reduceHealth() {
+  if(health > ATTACK_VALUE) {
+    health -= ATTACK_VALUE;
+  }
+  else {
+    health = 0;
+  }
+}
+
+void increaseHealth() {
+  if(health < MAX_HEALTH) {
+    health += ATTACK_VALUE;
+  }
+  else {
+    health = MAX_HEALTH;
+  }  
+}
+
