@@ -50,7 +50,7 @@ void setup() {
   healthTimer.set(1000);
 }
 
-void draw() {
+void loop() {
 
   if(buttonDoubleClicked()){
     // reset game piece
