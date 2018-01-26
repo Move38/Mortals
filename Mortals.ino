@@ -27,114 +27,199 @@
 #include "blinklib.h"
 #include "blinkstate.h"
 
-#define MAX_HEALTH 90
-#define ATTACK_VALUE 5
+
+#define ATTACK_VALUE 5        // Amount of health you loose when attacked.
+#define ATTACK_DURRATION_MS 100   // Time between when we see first new neighbor and when we stop attacking. 
+#define HEALTH_STEP_TIME_MS 1000  // Health decremented by 1 unit this often
+
+#define INJURED_DURRATION_MS 100  // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle. 
+
+#define INITIAL_HEALTH      60
+#define MAX_HEALTH        90
+
 
 byte team = 0;
-byte health = 60;
-bool isAttacking = false;
 
-enum state {
+// TODO: This should really be replaced with bounded::integer<>
+
+class Health {
+  
+  byte m_health;
+  
+  public:
+  
+  void reset() {
+    m_health=INITIAL_HEALTH;
+  }
+  
+  void reduce( byte howMuch) {
+    if ( howMuch <= m_health ) {
+      m_health-=howMuch;
+    } else {
+      m_health=0;
+    }
+  }
+  
+  void increase( byte howMuch ) {
+      if(m_health < howMuch) {
+        m_health += howMuch;
+      }
+      else {
+        m_health = MAX_HEALTH;
+      }   
+  }
+  
+  
+  bool isAlive() {
+    return m_health>0;
+  }
+  
+  byte getHealth() {
+    return m_health;
+  }
+  
+};
+
+Health health; 
+  
+Timer healthTimer;  // Count down to next time we loose a unit of health
+
+enum State {
   DEAD,
   ALIVE,
-  ATTACK,
+  ENGUARDE,   // I am ready to attack! 
+  ATTACKING,  // Short window when I have already come across my first victim and started attacking
   INJURED
 };
 
-byte mode = ALIVE;
+byte mode = DEAD;
 
-Timer healthTimer;
-Timer attackTimer;  // time since first attack to still allow attacking (since it is impossible for all sides to meet at the same time)
+Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we switch back to normal ALIVE. 
+             // Started when we are injuried to make sure we don't get injuied multipule times on the same attack
 
 void setup() {
-  healthTimer.set(1000);
+  blinkStateBegin();
 }
 
 void loop() {
+  
+  // Update our mode first  
 
   if(buttonDoubleClicked()){
-    // reset game piece
+    // reset game piece   
+    mode=ALIVE;
+    health.reset();
+    healthTimer.setMSFromNow(HEALTH_STEP_TIME_MS);
   }
-
-  if(isAlone()) {
-    isAttacking = true;
-    setState(ATTACK);
+  
+  if (healthTimer.isExpired()) {
+    
+    health.reduce(1);
+    healthTimer.setMSFromNow(HEALTH_STEP_TIME_MS);  
+    
+    if (!health.isAlive()) {      
+      mode = DEAD;      
+    } 
   }
-
+  
+  
+  
+  if ( mode != DEAD ) {
+      
+    if(isAlone()) {
+      
+    mode = ENGUARDE;      // Being lonesome makes us ready to attack!
+    
+    } else {  // !isAlone()
+      
+    if (mode==ENGUARDE) {     // We were ornery, but saw someone so we begin our attack in earnest!
+      
+      mode=ATTACKING;
+      modeTimeout.setMSFromNow( ATTACK_DURRATION_MS );
+    }
+      
+    }
+    
+    
+    if (mode==ATTACKING || mode == INJURED ) {
+      
+    if (modeTimeout.isExpired()) {
+      mode=ALIVE;
+    }
+    } 
+  } // !DEAD
+    
   FOREACH_FACE(f) {
     
+  byte neighborState = getNeighborState(f);   
+    
     if(neighborStateChanged(f)) {
+        
+    if ( mode == ATTACKING ) {
       
-      if(getNeighborState(f) == ATTACK) {
+      // We take our flesh when we see that someone we attacked is actually injured
+    
+      if ( neighborState == INJURED ) {     
         
-        // reduce health by attackStrength
-        reduceHealth();
-         
-        // show injured on that face
-        setFaceState(f,INJURED);
+        // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction. 
         
-        // animate injury towards the face
-        setFaceColor(f, RED);
+        health.increase( ATTACK_VALUE );
+                
       }
-
-      // if I am attack && neighbor == injured
-      if( isAttacking ) {
-
-        attackTimer.set(100);
+      
+    } else if ( mode == ALIVE ) {
+      
+      if ( neighborState == ATTACKING ) {
         
-        if( getNeighborState(f) == INJURED ) {
-          
-          // increase health by attackStrength
-          increaseHealth();
-          
-          // change state to alive
-          setFaceState(f, ALIVE);
-        }
+        health.reduce( ATTACK_VALUE ) ;
+                                        
+        mode = INJURED;
+        
+        modeTimeout.setMSFromNow( INJURED_DURRATION_MS );
+      
       }
+      
+    } else if (mode==INJURED) {
+      
+      if (modeTimeout.isExpired()) {
+        
+        mode = ALIVE;
+        
+      }
+      
     }
-  }
-
-  if(attackTimer.isComplete()) {
-    isAttacking = false;
-    setState(ALIVE);
-    attackTimer.stop();
-  }
-
-  // reduce health with time 1 unit every 1000ms
-  if( health > 0 ) {
-    // ALIVE
-    if(healthTimer.isComplete()){
-      health--;    
-      healthTimer.set(1000);
-    }
-  }
-  else {
-    healthTimer.stop();
-    // DEAD
-  }
-}
-
-/*
- *  lose X seconds when attacked
- */
-void reduceHealth() {
-  if(health > ATTACK_VALUE) {
-    health -= ATTACK_VALUE;
-  }
-  else {
-    health = 0;
-  }
-}
-
-/*
- *  gain X seconds from attacking
- */
-void increaseHealth() {
-  if(health < MAX_HEALTH) {
-    health += ATTACK_VALUE;
-  }
-  else {
-    health = MAX_HEALTH;
+   } 
   }  
+  
+  
+  // Update our display based on new state
+  
+  switch (mode) {
+    
+    case DEAD:
+    setColor( dim( RED , 4 ) );
+    break;
+      
+    case ALIVE:
+    setColor( dim( GREEN , (health.getHealth() * 31 ) / MAX_HEALTH ) );   
+    break;
+    
+    case ENGUARDE:
+    setColor( CYAN );
+    break;
+    
+    case ATTACKING:
+      setColor( BLUE );
+    break;
+    
+    case INJURED:
+      setColor( ORANGE );
+    break;
+    
+  }
+           
+  setState( mode );       // Tell everyone around how we are feeling
+    
 }
+
 
