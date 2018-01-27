@@ -112,7 +112,7 @@ void loop() {
     // reset game piece   
     mode=ALIVE;
     health.reset();
-    healthTimer.set(HEALTH_STEP_TIME_MS);
+    healthTimer.setMSFromNow( HEALTH_STEP_TIME_MS );
   }
 
   if(buttonLongPressed()) {
@@ -121,10 +121,10 @@ void loop() {
     teamColor = makeColorHSB(60 + team * 50, 255, 255);
   }
   
-  if (healthTimer.isComplete()) {
+  if (healthTimer.isExpired()) {
     
     health.reduce(1);
-    healthTimer.set(HEALTH_STEP_TIME_MS);  
+    healthTimer.setMSFromNow(HEALTH_STEP_TIME_MS);  
     
     if (!health.isAlive()) {      
       mode = DEAD;      
@@ -144,7 +144,7 @@ void loop() {
     if (mode==ENGUARDE) {     // We were ornery, but saw someone so we begin our attack in earnest!
       
       mode=ATTACKING;
-      modeTimeout.set( ATTACK_DURRATION_MS );
+      modeTimeout.setMSFromNow( ATTACK_DURRATION_MS );
     }
       
     }
@@ -152,7 +152,7 @@ void loop() {
     
     if (mode==ATTACKING || mode == INJURED ) {
       
-    if (modeTimeout.isComplete()) {
+    if (modeTimeout.isExpired()) {
       mode=ALIVE;
     }
     } 
@@ -184,13 +184,13 @@ void loop() {
                                         
         mode = INJURED;
         
-        modeTimeout.set( INJURED_DURRATION_MS );
+        modeTimeout.setMSFromNow( INJURED_DURRATION_MS );
       
       }
       
     } else if (mode==INJURED) {
       
-      if (modeTimeout.isComplete()) {
+      if (modeTimeout.isExpired()) {
         
         mode = ALIVE;
         
