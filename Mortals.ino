@@ -29,16 +29,19 @@
 
 
 #define ATTACK_VALUE 5        // Amount of health you loose when attacked.
-#define ATTACK_DURRATION_MS 100   // Time between when we see first new neighbor and when we stop attacking. 
+#define ATTACK_DURRATION_MS 300   // Time between when we see first new neighbor and when we stop attacking. 
 #define HEALTH_STEP_TIME_MS 1000  // Health decremented by 1 unit this often
 
-#define INJURED_DURRATION_MS 100  // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle. 
+#define INJURED_DURRATION_MS 300  // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle. 
 
 #define INITIAL_HEALTH      60
-#define MAX_HEALTH        90
+#define MAX_HEALTH          90
+
+#define MAX_TEAMS           4      
 
 
 byte team = 0;
+Color teamColor = makeColorHSB(60,255,255);
 
 // TODO: This should really be replaced with bounded::integer<>
 
@@ -109,13 +112,19 @@ void loop() {
     // reset game piece   
     mode=ALIVE;
     health.reset();
-    healthTimer.setMSFromNow(HEALTH_STEP_TIME_MS);
+    healthTimer.set(HEALTH_STEP_TIME_MS);
+  }
+
+  if(buttonLongPressed()) {
+    // change team
+    team = (team + 1) % MAX_TEAMS;
+    teamColor = makeColorHSB(60 + team * 50, 255, 255);
   }
   
-  if (healthTimer.isExpired()) {
+  if (healthTimer.isComplete()) {
     
     health.reduce(1);
-    healthTimer.setMSFromNow(HEALTH_STEP_TIME_MS);  
+    healthTimer.set(HEALTH_STEP_TIME_MS);  
     
     if (!health.isAlive()) {      
       mode = DEAD;      
@@ -135,7 +144,7 @@ void loop() {
     if (mode==ENGUARDE) {     // We were ornery, but saw someone so we begin our attack in earnest!
       
       mode=ATTACKING;
-      modeTimeout.setMSFromNow( ATTACK_DURRATION_MS );
+      modeTimeout.set( ATTACK_DURRATION_MS );
     }
       
     }
@@ -143,7 +152,7 @@ void loop() {
     
     if (mode==ATTACKING || mode == INJURED ) {
       
-    if (modeTimeout.isExpired()) {
+    if (modeTimeout.isComplete()) {
       mode=ALIVE;
     }
     } 
@@ -175,13 +184,13 @@ void loop() {
                                         
         mode = INJURED;
         
-        modeTimeout.setMSFromNow( INJURED_DURRATION_MS );
+        modeTimeout.set( INJURED_DURRATION_MS );
       
       }
       
     } else if (mode==INJURED) {
       
-      if (modeTimeout.isExpired()) {
+      if (modeTimeout.isComplete()) {
         
         mode = ALIVE;
         
@@ -197,23 +206,26 @@ void loop() {
   switch (mode) {
     
     case DEAD:
-    setColor( dim( RED , 4 ) );
+    setColor( dim( WHITE , 16 + 15 * sin_d( (millis()/10) % 360) ) );
     break;
       
     case ALIVE:
-    setColor( dim( GREEN , (health.getHealth() * 31 ) / MAX_HEALTH ) );   
+    setColor( dim( teamColor , (health.getHealth() * 31 ) / MAX_HEALTH ) );   
     break;
     
     case ENGUARDE:
-    setColor( CYAN );
+      setColor( OFF );
+      setFaceColor( (millis()/100) % FACE_COUNT, teamColor );
     break;
     
     case ATTACKING:
-      setColor( BLUE );
+      setColor( OFF );
+      setFaceColor( rand(FACE_COUNT), teamColor );
+      
     break;
     
     case INJURED:
-      setColor( ORANGE );
+      setColor( RED );
     break;
     
   }
@@ -222,4 +234,10 @@ void loop() {
     
 }
 
+// Sin in degrees ( standard sin() takes radians )
+
+float sin_d( uint16_t degrees ) {
+
+    return sin( ( degrees / 360.0F ) * 2.0F * PI   );
+}
 
