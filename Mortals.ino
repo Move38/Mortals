@@ -52,7 +52,10 @@ enum State {
   ALIVE,
   ENGUARDE,   // I am ready to attack!
   ATTACKING,  // Short window when I have already come across my first victim and started attacking
-  INJURED
+  INJURED,
+  READY,
+  TEAM_A_START,
+  TEAM_B_START,
 };
 
 byte mode = DEAD;
@@ -205,4 +208,59 @@ float sin_d( uint16_t degrees ) {
     return sin( ( degrees / 360.0F ) * 2.0F * PI   );
 }
 
+
+/*
+ *  Determine if we are in the READY Mode
+ */
+
+bool isBlinkInReadyConfiguration() {
+
+  // first count neighbors, if we have more or less than 2, then we are not in the ready mode
+  byte numNeighbors = 0;
+  
+  FOREACH_FACE(f) {
+    if(!isValueReceivedOnFaceExpired(f)) {
+      numNeighbors++;
+    }
+  }
+
+  if(numNeighbors != 2) {
+    return false;
+  }
+  
+  // we have 2 neighbors, let's make sure they are dead or ready
+  FOREACH_FACE(f) {
+    if(!isValueReceivedOnFaceExpired(f)) {
+    
+      byte neighborMode = getLastValueReceivedOnFace(f); 
+
+      if(neighborMode != DEAD || neighborMode != READY) {
+        return false; 
+      }
+    }
+  }
+
+  // great we have 2 neighbors that are either dead or ready
+  // let's check to see if they are adjacent to one another
+  byte NO_FACE = 255;
+  
+  byte firstNeighborFace = NO_FACE;
+  byte secondNeighborFace = NO_FACE;
+  
+  FOREACH_FACE(f) {
+    if(!isValueReceivedOnFaceExpired(f)) {
+      
+      if(firstNeighborFace == NO_FACE) {
+        firstNeighborFace = f;
+      }else {
+        secondNeighborFace = f;
+      }
+    }
+  }
+
+  // now that we have the two faces, are they adjacent?
+  if( (firstNeighborFace + 1) % FACE_COUNT == secondNeighborFace || (firstNeighborFace + FACE_COUNT - 1) % FACE_COUNT == secondNeighborFace ) {
+    return true;
+  }
+}
 
