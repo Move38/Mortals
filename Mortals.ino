@@ -258,8 +258,15 @@ bool isBlinkInReadyConfiguration() {
   }
 
   // now that we have the two faces, are they adjacent?
-  if( (firstNeighborFace + 1) % FACE_COUNT == secondNeighborFace || (firstNeighborFace + FACE_COUNT - 1) % FACE_COUNT == secondNeighborFace ) {
+  if( (firstNeighborFace == 0 && secondNeighborFace  == 1 ) ||
+      (firstNeighborFace == 1 && secondNeighborFace  == 2 ) ||
+      (firstNeighborFace == 2 && secondNeighborFace  == 3 ) ||
+      (firstNeighborFace == 3 && secondNeighborFace  == 4 ) ||
+      (firstNeighborFace == 4 && secondNeighborFace  == 5 ) ||
+      (firstNeighborFace == 0 && secondNeighborFace  == 5 ) )
+  {  
     return true;
   }
-}
 
+  return false;
+}
