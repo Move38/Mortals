@@ -20,7 +20,12 @@
 *
 *  Technical Details:
 *  A long press on the tile changes the color of the tile for prototyping (switch state 1 or 2)
-*
+*  
+*  When a group of 3 is all dead and each Blink has only 2 adjacent neighbors 
+*  (after 2 seconds of being this way, get into ready mode)
+*  When in ready mode, if connected to another ready mode Blink, choose random team, until it doesn't match
+*  if teams don't match, let the games begin.
+*  Let the two adjacent Blinks on your team know what team we are and start a count down for the game to begin
 *
 */
 
