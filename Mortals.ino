@@ -233,7 +233,7 @@ bool isBlinkInReadyConfiguration() {
     
       byte neighborMode = getLastValueReceivedOnFace(f); 
 
-      if(neighborMode != DEAD || neighborMode != READY) {
+      if(neighborMode != DEAD && neighborMode != READY) {
         return false; 
       }
     }
