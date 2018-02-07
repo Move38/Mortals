@@ -64,7 +64,6 @@ Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we sw
 // Started when we are injured to make sure we don't get injured multiple times on the same attack
 
 void setup() {
-  blinkStateBegin();
 }
 
 
