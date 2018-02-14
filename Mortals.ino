@@ -1,299 +1,239 @@
 /*
- * Mortals for Blinks
- * 
- *  Setup: 2 player game. Tiles die slowly over time, all at the same rate. 
- *  Moving a single tile to a new place allows it to suck life from 
- *  surrounding tiles, friend or foe.
- *  
- *  Blinks start with 60 seconds of life
- *  
- *  When a tile is moved alone, it sucks 5 seconds of health from each one of
- *  its newly found neighbors. A non-moved neighbor with a new neighbor looses 5 seconds
- *  and animates in the direction it lost the life (i.e. where the neighbor showed up)
- *  
- *   Tiles resets health to full when triple press occurs
- *
- *    States for game piece
- *    0 = no piece
- *    1 = player 1 alive (glow purple)
- *    2 = player 2 alive (glow green)
- *    3 = player 1 alive moving solo
- *    4 = player 2 alive moving solo
- *    5 = dead (pulse white)
- *
- *  Technical Details:
- *  A long press on the tile changes the color of the tile for prototyping (switch state 1 or 2)
- *
- * 
- */
+* Mortals for Blinks
+*
+*  Setup: 2 player game. Tiles die slowly over time, all at the same rate.
+*  Moving a single tile to a new place allows it to suck life from
+*  surrounding tiles, friend or foe.
+*
+*  Blinks start with 60 seconds of life
+*
+*  When a tile is moved alone, it sucks 5 seconds of health from each one of
+*  its newly found neighbors. A non-moved neighbor with a new neighbor looses 5 seconds
+*  and animates in the direction it lost the life (i.e. where the neighbor showed up)
+*
+*   Tiles resets health to full when triple press occurs
+*
+*    States for game piece.
+*    Alive/Dead
+*    Team
+*    Attack, Injured
+*
+*  Technical Details:
+*  A long press on the tile changes the color of the tile for prototyping (switch state 1 or 2)
+*
+*
+*/
 
-#include "blinklib.h"
-#include "blinkstate.h"
+#define ATTACK_VALUE 5                // Amount of health you loose when attacked.
+#define ATTACK_DURRATION_MS   100     // Time between when we see first new neighbor and when we stop attacking.
+#define HEALTH_STEP_TIME_MS  1000     // Health decremented by 1 unit this often
 
-uint8_t deadWhite[3] = {16,16,16};      // white  (dead state)
+#define INJURED_DURRATION_MS  100     // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle.
 
-uint8_t team1Strong[3] = {255,0,64};    // red    (player 1 beginning of life)
-uint8_t team1Weak[3]   = {153,0,255};   // purple (player 1 end of life)
-uint8_t team2Strong[3] = {64,255,0};    // green  (player 2 beginning of life)
-uint8_t team2Weak[3]   = {0,255,153};   // cyan   (player 2 end of life)
-// future use
-uint8_t team3Strong[3] = {255,255,0};   // yellow (player 3 beginning of life)
-uint8_t team3Weak[3]   = {255,64,0};    // orange (player 3 end of life)
+#define INITIAL_HEALTH         60
+#define MAX_HEALTH             90
 
-uint8_t brightness[60] = {
-  128,128,128,127,125,122,
-  119,116,112,107,102,96,
-  90,84,77,71,64,57,
-  51,44,38,32,26,21,
-  16,12,9,6,3,1,
-  0,0,0,1,3,6,
-  9,12,16,21,26,32,
-  38,44,51,57,64,71,
-  77,84,90,96,102,107,
-  112,116,119,122,125,127};
+#define MAX_TEAMS           4      
 
-uint8_t displayColor[3];
+word health;
 
-uint8_t prevNeighbors[6];
-uint8_t bAlone = 0;
-uint8_t aloneCount = 0;
+byte team = 0;
+Color teamColor = makeColorHSB(60,255,255);
 
-uint8_t myState = 0;
+Timer healthTimer;  // Count down to next time we loose a unit of health
 
-uint8_t team = 0; // which team are we part of purple or green (player 1 or player 2)
+enum State {
+  DEAD,
+  ALIVE,
+  ENGUARDE,   // I am ready to attack!
+  ATTACKING,  // Short window when I have already come across my first victim and started attacking
+  INJURED
+};
 
-// show when receive boost by glowing brighter
-uint32_t boostTime = 0;
-uint16_t boostHoldoff = 1000;  // prevent boost on reset
-uint16_t boostDuration = 300;
+byte mode = DEAD;
 
-uint32_t gameStartTime = 0;   // to know how far into the game we are
-float health = 120.0;         // 120pts health for start of life
-float damageRate = 2.0;       // how much health is lost / second
-float moveBoost = 10.0;       // 10pts health drain from neighbors when moved alone
-uint8_t bLeachLife = 0;       // boolean for health drain
-uint32_t leachTime = 0;
-uint16_t leachBuffer = 600;
+Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we switch back to normal ALIVE.
+// Started when we are injured to make sure we don't get injured multiple times on the same attack
 
-// helpers for the pulse rate
-uint32_t timePassedBuffer = 0;
-uint8_t prevIdx = 0;
 
-uint32_t lastUpdateTime = 0;
-uint32_t updateFrequency = 20;  //milliseconds
+// This map() functuion is now in Arduino.h in /dev
+// It is replicated here so this skect can compile on older API commits
+
+long map_m(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 void setup() {
-  // put your setup code here, to run once:
-  // Show a quick flash on ech face in sequence just to say hi
-
-  // set state to establish presence
-  setState(1);
-  myState = 1;
+  blinkStateBegin();
 }
+
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  uint32_t curTime = millis();
   
-  // check surroundings
+  // Update our mode first
+
+  if(buttonDoubleClicked()) {
+    // reset game piece
+    mode=ALIVE;
+    health=INITIAL_HEALTH;
+    healthTimer.set(HEALTH_STEP_TIME_MS);
+  }
+
+  if(buttonLongPressed()) {
+    // change team
+    team = (team + 1) % MAX_TEAMS;
+    teamColor = makeColorHSB(60 + team * 50, 255, 255);
+  }
   
-  bLeachLife = 0;  
-
-  // if we are alive...
-  if(myState >= 1 && myState <= 4) {
-    // check how much life is remaining
-    health -= damageRate * ((curTime - lastUpdateTime) / 1000.0);
-    // same as health = health - ....;
-
-    if(health <= 1.0) {
-      // we are dead, show dead state
-      health = 0.0;
-      setState(5);
-      myState = 5;
-    }
-    else {
-      // deal with a living tile here
-      uint8_t numNeighbors = 0;
-      uint8_t numAliveNeighbors = 0;
-
-      for(uint8_t i=0; i<6; i++) {
+  if (healthTimer.isExpired()) {
     
-        // count total number of neighbors
-        if(getNeighborState(i) != 0) {
-          
-          numNeighbors++;
-          aloneCount = 0;
+    if (health>0) {
+      
+      health--;
+      healthTimer.set(HEALTH_STEP_TIME_MS);
+      
+    } else {
+    
+      mode = DEAD;
 
-          // if a neighbor is leaching life
-          if(getNeighborState(i) == 3 || getNeighborState(i) == 4) {
-            bLeachLife = 1;
-          }
-          
-          if(getNeighborState(i) != 5) {
-            numAliveNeighbors++;
-          }
-        }
-      }
-
-      // assume we are alone
-      if(aloneCount < 254)
-        aloneCount++;
-
-      // prevent actions if just restarted (prevents accidental boosts)
-      if(millis() - gameStartTime > boostHoldoff) {
-
-        if(numNeighbors != 0) {
-          // we are not alone
-          // if we were alone, suck health from each neighbor
-          if(bAlone == 1) {
-            health += moveBoost * numAliveNeighbors;
-            bAlone = 0;
-            // only show boost animation if attaching to at least one living tile to leach from
-            if(numAliveNeighbors != 0) {
-              boostTime = curTime;
-            }
-            //return to attached state
-            if(team == 0) {
-              setState(1);
-              myState = 1;
-            }
-            else {
-              setState(2);
-              myState = 2;
-            }
-          }
-          else  {
-            // we were not alone, check if we are being leached
-            if(bLeachLife && curTime - leachTime > leachBuffer) {
-              health -= moveBoost;
-              leachTime = curTime;
-            }
-          }
-        }
-        else {
-          // we are lonely or being moved. 
+    }
+    
+  }
   
-          // make sure we register as alone for 10 reads
-          if(aloneCount > 10) {
-            bAlone = 1;
-            // set state to moving
-            if(team == 0) {
-              setState(3);
-              myState = 3;
-            }
-            else {
-              setState(4);
-              myState = 4;
-            }
-          }
-        }
+  if ( mode != DEAD ) {
+    
+    if(isAlone()) {
+      
+      mode = ENGUARDE;      // Being lonesome makes us ready to attack!
+      
+      } else {  // !isAlone()
+      
+      if (mode==ENGUARDE) {     // We were ornery, but saw someone so we begin our attack in earnest!
+        
+        mode=ATTACKING;
+        modeTimeout.set( ATTACK_DURRATION_MS );
+      }
+      
+    }
+    
+    
+    if (mode==ATTACKING || mode == INJURED ) {
+      
+      if (modeTimeout.isExpired()) {
+        mode=ALIVE;
       }
     }
-  }
-
-  // determine period
-  uint32_t period = health * 30.0; // sqrt(health)
-  if(myState == 3) {
-    period = 4000;
-  }
-  uint32_t timePassed = curTime - lastUpdateTime;
-  uint8_t idx = getNextPosition(60, prevIdx, timePassed, period);
-  prevIdx = idx;
-
-  // display your state based on the team you are on
-  if(myState == 5) {
-    // display state using white (dead white)
-    displayColor[0] = deadWhite[0];
-    displayColor[1] = deadWhite[1];
-    displayColor[2] = deadWhite[2];
-  }
-  else{
-    // based on the amount of health fade towards a death color
-    float progHealth;
-    if(health > 100.0){
-      progHealth = 100.0;
-    }
-    else {
-      progHealth = health;
-    }
-    float progress = progHealth / 100.0;
-    if(team == 0) {      
-      displayColor[0] = team1Strong[0] * progress + team1Weak[0] * (1.0 - progress);
-      displayColor[1] = team1Strong[1] * progress + team1Weak[1] * (1.0 - progress);
-      displayColor[2] = team1Strong[2] * progress + team1Weak[2] * (1.0 - progress);
-    }
-    else if(team == 1) {      
-      displayColor[0] = team2Strong[0] * progress + team2Weak[0] * (1.0 - progress);
-      displayColor[1] = team2Strong[1] * progress + team2Weak[1] * (1.0 - progress);
-      displayColor[2] = team2Strong[2] * progress + team2Weak[2] * (1.0 - progress);
-    }
-  }
-
-  uint8_t r, g, b;
-  if(curTime - boostTime < boostDuration) {
-    // fade from white for boost
-    float progress = (curTime - boostTime) / (float)boostDuration;
-    r = displayColor[0] * progress + 255 * (1.0 - progress);
-    g = displayColor[1] * progress + 255 * (1.0 - progress);
-    b = displayColor[2] * progress + 255 * (1.0 - progress);
-    // set the index of the pulse to the brightest point to start
-    prevIdx = 0;
-  }
-  else if(myState == 5){
-    // if dead, barely pulse
-    r = (displayColor[0] * (2 + brightness[idx]))/255.0;
-    g = (displayColor[1] * (2 + brightness[idx]))/255.0;
-    b = (displayColor[2] * (2 + brightness[idx]))/255.0;
-  }
-  else {
-    // pulse based on health
-    r = (displayColor[0] * (32 + brightness[idx]))/255.0;
-    g = (displayColor[1] * (32 + brightness[idx]))/255.0;
-    b = (displayColor[2] * (32 + brightness[idx]))/255.0;
-  }
-
-  displayColor[0] = r;
-  displayColor[1] = g;
-  displayColor[2] = b;
+  } // !DEAD
   
-  setColor(makeColorRGB(displayColor[0],displayColor[1],displayColor[2]));
-
-  lastUpdateTime = curTime;
+  FOREACH_FACE(f) {
+    
+    
+    if(!isValueReceivedOnFaceExpired(f)) {
+      
+      byte neighborMode = getLastValueReceivedOnFace(f); 
+      
+      if ( mode == ATTACKING ) {
+        
+        // We take our flesh when we see that someone we attacked is actually injured
+        
+        if ( neighborMode == INJURED ) {
+          
+          // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
+          
+          health = min( health + ATTACK_VALUE , MAX_HEALTH );
+          
+        }
+        
+      } else if ( mode == ALIVE ) {
+        
+        if ( neighborMode == ATTACKING ) {
+          
+          health = max( health - ATTACK_VALUE , 0 ) ;
+          
+          mode = INJURED;
+          
+          modeTimeout.set( INJURED_DURRATION_MS );
+          
+        }
+        
+      } else if (mode==INJURED) {
+        
+        if (modeTimeout.isExpired()) {
+          
+          mode = ALIVE;
+          
+        }        
+      }
+    }
+  }
+  
+  
+  // Update our display based on new state
+  
+  switch (mode) {
+    
+    case DEAD:
+      /* 
+       * animate like a ghost 
+       * circle around as a dimly lit soul
+       */
+      setColor(OFF);
+      FOREACH_FACE(f) {
+        setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60*f + millis()/8) % 360)));
+      }
+//      setColor( dim( WHITE , 127 + 126 * sin_d( (millis()/10) % 360) ) );`
+      break;
+    
+    case ALIVE:
+      /* 
+       * animate to breath 
+       * the less health we have, the shorter of breath
+       * we become
+       */
+      setColor( dim( teamColor , map_m( (health * MAX_BRIGHTNESS ) / MAX_HEALTH, 0, MAX_HEALTH, 1, 255)  ) );
+      break;
+    
+    case ENGUARDE:
+      /* 
+       * animate with a spin
+       * wind up to deliver a punch
+       * TODO: soften the spin with fades on either side...
+       */
+      setColor( OFF );
+      setFaceColor( (millis()/100) % FACE_COUNT, teamColor );
+      break;
+    
+    case ATTACKING:
+      /* 
+       * animate bright on the side of the attack
+       * fall off like the flash of a camera bulb
+       */
+      setColor( OFF );
+      setFaceColor( rand(FACE_COUNT), teamColor );
+      break;
+    
+    case INJURED:
+      /* 
+       * animate to bleed
+       * glow red on the side we were hit
+       * fall off like the flash of a camera bulb
+       */
+      setColor( RED );
+      break;
+    
+  }
+  
+  setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+  
 }
 
-/*
- * Returns the next position given a previous position and the amount of time passed
- * The position is relative to the period provided
- *
- * numSteps <uint8_t> number of steps in the cycle, values returned will fall within this range [0,numSteps]
- * currentPosition <uint8_t> value between 0 and numSteps for location in pattern
- * timePassed <uint32_t> millis since last updated position
- * period <uint16_T> length of a single cycle in millis
- */
-uint8_t getNextPosition(uint8_t numSteps, uint8_t currentPosition, uint32_t timePassed, uint32_t period) {
 
-  //get normalized value of current position
-  float pos = currentPosition / (float)numSteps;
+// Sin in degrees ( standard sin() takes radians )
 
-  //calculate increment based on how much time passed over this period
-  float increment = (timePassed + timePassedBuffer) / (float)period;
+float sin_d( uint16_t degrees ) {
 
-  // increment our position based on time passed
-  float nextPos = pos + increment;
-
-  // if we incremented past completion, start the cycle over
-  if(nextPos >= 1.0) {
-    nextPos -= 1.0;
-  }
-
-  // return the position in terms of steps along the total path
-  uint8_t nextIndex = nextPos * numSteps;
-  if(nextIndex == currentPosition) {
-    timePassedBuffer += timePassed;
-  }
-  else {
-    timePassedBuffer = 0;
-  }
-
-  return nextIndex;
+    return sin( ( degrees / 360.0F ) * 2.0F * PI   );
 }
+
+
