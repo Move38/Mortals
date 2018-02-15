@@ -69,6 +69,14 @@ void setup() {
 }
 
 
+// Sin in degrees ( standard sin() takes radians )
+
+float sin_d( uint16_t degrees ) {
+
+    return sin( ( degrees / 360.0F ) * 2.0F * PI   );
+}
+
+
 void loop() {
   
   // Update our mode first
@@ -228,12 +236,5 @@ void loop() {
   
 }
 
-
-// Sin in degrees ( standard sin() takes radians )
-
-float sin_d( uint16_t degrees ) {
-
-    return sin( ( degrees / 360.0F ) * 2.0F * PI   );
-}
 
 
