@@ -63,6 +63,16 @@ byte mode = DEAD;
 Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we switch back to normal ALIVE.
 // Started when we are injured to make sure we don't get injured multiple times on the same attack
 
+
+// This map() functuion is now in Arduino.h in /dev
+// It is replicated here so this skect can compile on older API commits
+
+long map_m(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+
 void setup() {
 }
 
