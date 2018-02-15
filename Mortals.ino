@@ -283,7 +283,7 @@ void loop() {
 
           // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
-          health = min( health + ATTACK_VALUE , MAX_HEALTH );
+          health = (byte) min( (int)health + ATTACK_VALUE , MAX_HEALTH );
 
         }
 
@@ -291,7 +291,7 @@ void loop() {
 
         if ( neighborMode == ATTACKING ) {
 
-          health = max( health - ATTACK_VALUE , 0 ) ;
+          health = (byte) max( (int)health - ATTACK_VALUE , 0 ) ;
 
           mode = INJURED;
 
