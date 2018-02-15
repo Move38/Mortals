@@ -81,14 +81,14 @@ void loop() {
   
   // Update our mode first
 
-  if(buttonDoubleClicked()) {
+ if (buttonMultiClicked() && buttonClickCount() == 3) {
     // reset game piece
     mode=ALIVE;
     health=INITIAL_HEALTH;
     healthTimer.set(HEALTH_STEP_TIME_MS);
   }
 
-  if(buttonLongPressed()) {
+  if(buttonDoubleClicked()) {
     // change team
     team = (team + 1) % MAX_TEAMS;
     teamColor = makeColorHSB(60 + team * 50, 255, 255);
