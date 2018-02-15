@@ -172,24 +172,51 @@ void loop() {
   switch (mode) {
     
     case DEAD:
-      setColor( dim( WHITE , 127 + 126 * sin_d( (millis()/10) % 360) ) );
+      /* 
+       * animate like a ghost 
+       * circle around as a dimly lit soul
+       */
+      setColor(OFF);
+      FOREACH_FACE(f) {
+        setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60*f + millis()/8) % 360)));
+      }
+//      setColor( dim( WHITE , 127 + 126 * sin_d( (millis()/10) % 360) ) );`
       break;
     
     case ALIVE:
-      setColor( dim( teamColor , (health * MAX_BRIGHTNESS ) / MAX_HEALTH ) );
+      /* 
+       * animate to breath 
+       * the less health we have, the shorter of breath
+       * we become
+       */
+      setColor( dim( teamColor , map_m( (health * MAX_BRIGHTNESS ) / MAX_HEALTH, 0, MAX_HEALTH, 1, 255)  ) );
       break;
     
     case ENGUARDE:
+      /* 
+       * animate with a spin
+       * wind up to deliver a punch
+       * TODO: soften the spin with fades on either side...
+       */
       setColor( OFF );
       setFaceColor( (millis()/100) % FACE_COUNT, teamColor );
       break;
     
     case ATTACKING:
+      /* 
+       * animate bright on the side of the attack
+       * fall off like the flash of a camera bulb
+       */
       setColor( OFF );
       setFaceColor( rand(FACE_COUNT), teamColor );
       break;
     
     case INJURED:
+      /* 
+       * animate to bleed
+       * glow red on the side we were hit
+       * fall off like the flash of a camera bulb
+       */
       setColor( RED );
       break;
     
