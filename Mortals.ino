@@ -142,7 +142,7 @@ void loop() {
 
   if ( !hasPickedTeam ) {
     // it is possible that we about to start the game.
-    if (isBlinkInStartConfiguration()) {
+    if (isBlinkTeamCaptain()) {
       // let's get this party started
       // pick a team color (coin toss)
       if (cointossTimer.isExpired() ) {
@@ -365,7 +365,8 @@ void loop() {
   if ( mode == TEAM_A_START || mode == TEAM_B_START ) {
 
     // send team to the players on our team
-    sendValueToTeam();
+    setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+//    sendValueToTeam();
   }
   else if ( mode == TEAM_A_COINTOSS || mode == TEAM_B_COINTOSS ) {
     sendValueToOpponent();
@@ -454,9 +455,9 @@ bool isBlinkInReadyConfiguration() {
    determine if we are in the start configuration
 */
 
-bool isBlinkInStartConfiguration() {
+bool isBlinkTeamCaptain() {
 
-  // first count neighbors, if we have more or less than 2, then we are not in the ready mode
+  // first count neighbors, if we have more or less than 3, then we are not in the ready mode
   byte numNeighbors = 0;
 
   FOREACH_FACE(f) {
@@ -469,7 +470,7 @@ bool isBlinkInStartConfiguration() {
     return false;
   }
 
-  // we have 2 neighbors, let's make sure they are dead or ready
+  // we have 3 neighbors, let's make sure they are dead or ready
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
 
@@ -531,10 +532,10 @@ bool isBlinkReadyToStartCountdown(int team) {
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
       byte neighborMode = getLastValueReceivedOnFace(f);
-      if ( team == TEAM_A_COINTOSS && neighborMode == TEAM_B_COINTOSS ) {
+      if ( team == TEAM_A_COINTOSS && (neighborMode == TEAM_B_COINTOSS || neighborMode == TEAM_B_START) ) {
         return true;
       }
-      else if ( team == TEAM_B_COINTOSS && neighborMode == TEAM_A_COINTOSS ) {
+      else if ( team == TEAM_B_COINTOSS && (neighborMode == TEAM_A_COINTOSS || neighborMode == TEAM_A_START) ) {
         return true;
       }
     }
