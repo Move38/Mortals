@@ -40,8 +40,8 @@
 
 #define MAX_TEAMS           4
 
-#define COINTOSS_FLIP_DURATION  500   // how long we commit to our cointoss for
-
+#define COINTOSS_FLIP_DURATION  100   // how long we commit to our cointoss for
+#define GAME_START_DURATION     300   // wait for all teammates to get the signal to start
 word health;
 
 byte team = 0;
@@ -49,6 +49,7 @@ Color teamColor = makeColorHSB(60, 255, 255);
 
 Timer healthTimer;  // Count down to next time we loose a unit of health
 Timer cointossTimer;
+Timer startGameTimer;
 
 enum State {
   DEAD,
@@ -87,18 +88,18 @@ void loop() {
 
   // Update our mode first
 
-  if (buttonDoubleClicked()) {
-    // reset game piece
-    mode = ALIVE;
-    health = INITIAL_HEALTH;
-    healthTimer.set(HEALTH_STEP_TIME_MS);
-  }
-
-  if (buttonLongPressed()) {
-    // change team
-    team = (team + 1) % MAX_TEAMS;
-    teamColor = makeColorHSB(60 + team * 50, 255, 255);
-  }
+  //  if (buttonDoubleClicked()) {
+  //    // reset game piece
+  //    mode = ALIVE;
+  //    health = INITIAL_HEALTH;
+  //    healthTimer.set(HEALTH_STEP_TIME_MS);
+  //  }
+  //
+  //  if (buttonLongPressed()) {
+  //    // change team
+  //    team = (team + 1) % MAX_TEAMS;
+  //    teamColor = makeColorHSB(60 + team * 50, 255, 255);
+  //  }
 
   if ( mode != TEAM_A_COINTOSS && mode != TEAM_B_COINTOSS && mode != TEAM_A_START && mode != TEAM_B_START && mode != NEIGHBORSREADY ) {
 
@@ -118,6 +119,29 @@ void loop() {
 
   }
 
+  if ( mode == TEAM_A_START || mode == TEAM_B_START ) {
+
+    if ( startGameTimer.isExpired() ) {
+
+      // let's start the game
+      if ( mode == TEAM_A_START ) {
+        team = 0;
+      }
+
+      if ( mode == TEAM_B_START ) {
+        team = 2;
+      }
+
+      // set the team color
+      teamColor = makeColorHSB(60 + team * 50, 255, 255);
+
+      // reset game piece
+      mode = ALIVE;
+      health = INITIAL_HEALTH;
+      healthTimer.set(HEALTH_STEP_TIME_MS);
+    }
+  }
+
   bool hasPickedTeam = false;
 
   if ( mode == TEAM_A_COINTOSS || mode == TEAM_B_COINTOSS ) {
@@ -130,12 +154,13 @@ void loop() {
 
         mode = TEAM_A_START;
         hasPickedTeam = true;
+        startGameTimer.set(GAME_START_DURATION);
 
       } else if ( mode == TEAM_B_COINTOSS ) {
 
         mode = TEAM_B_START;
         hasPickedTeam = true;
-
+        startGameTimer.set(GAME_START_DURATION);
       }
     }
   }
@@ -166,9 +191,15 @@ void loop() {
 
         if (neighborMode == TEAM_A_START) {
           mode = TEAM_A_START;
+          if ( startGameTimer.isExpired() ) {
+            startGameTimer.set(GAME_START_DURATION);
+          }
         }
         else if (neighborMode == TEAM_B_START) {
           mode = TEAM_B_START;
+          if ( startGameTimer.isExpired() ) {
+            startGameTimer.set(GAME_START_DURATION);
+          }
         }
 
       }
@@ -333,32 +364,43 @@ void loop() {
       break;
 
     case READY:
-      /*
-         animate to bleed
-         glow red on the side we were hit
-         fall off like the flash of a camera bulb
-      */
-      setColor( YELLOW );
+      setColor(OFF);
+      FOREACH_FACE(f) {
+        setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
+      }
+
+//      setColor( YELLOW );
       break;
 
     case NEIGHBORSREADY:
-      setColor( GREEN );
+      setColor(OFF);
+      FOREACH_FACE(f) {
+        setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
+      }
+
+//      setColor( GREEN );
       break;
 
     case TEAM_A_COINTOSS:
-      setColor( BLUE );
+      setColor(OFF);
+      FOREACH_FACE(f) {
+        setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
+      }
       break;
 
     case TEAM_B_COINTOSS:
-      setColor( RED );
+      setColor(OFF);
+      FOREACH_FACE(f) {
+        setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
+      }
       break;
 
     case TEAM_A_START:
-      setColor( CYAN );
+      setColor( makeColorHSB(60 + 0 * 50, 255, 255));
       break;
 
     case TEAM_B_START:
-      setColor( MAGENTA );
+      setColor( makeColorHSB(60 + 2 * 50, 255, 255));
       break;
   }
 
@@ -366,7 +408,7 @@ void loop() {
 
     // send team to the players on our team
     setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
-//    sendValueToTeam();
+    //    sendValueToTeam();
   }
   else if ( mode == TEAM_A_COINTOSS || mode == TEAM_B_COINTOSS ) {
     sendValueToOpponent();
@@ -456,6 +498,11 @@ bool isBlinkInReadyConfiguration() {
 */
 
 bool isBlinkTeamCaptain() {
+
+  // first of all I can't be alive, because in that case, the game is still in progress
+  if ( mode == ALIVE || mode == ENGUARDE || mode == ATTACKING || mode == INJURED ) {
+    return false;
+  }
 
   // first count neighbors, if we have more or less than 3, then we are not in the ready mode
   byte numNeighbors = 0;
