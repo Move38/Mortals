@@ -29,7 +29,7 @@
 
 */
 
-#define ATTACK_VALUE 5                // Amount of health you loose when attacked.
+#define ATTACK_VALUE            5     // Amount of health you loose when attacked.
 #define ATTACK_DURRATION_MS   100     // Time between when we see first new neighbor and when we stop attacking.
 #define HEALTH_STEP_TIME_MS  1000     // Health decremented by 1 unit this often
 
@@ -38,11 +38,11 @@
 #define INITIAL_HEALTH         60
 #define MAX_HEALTH             90
 
-#define MAX_TEAMS           4
+#define MAX_TEAMS               4
 
 #define COINTOSS_FLIP_DURATION  100   // how long we commit to our cointoss for
 #define GAME_START_DURATION     300   // wait for all teammates to get the signal to start
-word health;
+int health;
 
 byte team = 0;
 Color teamColor = makeColorHSB(60, 255, 255);
@@ -62,7 +62,7 @@ enum State {
   TEAM_A_COINTOSS,
   TEAM_B_COINTOSS,
   TEAM_A_START,
-  TEAM_B_START,
+  TEAM_B_START
 };
 
 byte mode = DEAD;
@@ -283,7 +283,7 @@ void loop() {
 
           // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
-          health = (byte) min( (int)health + ATTACK_VALUE , MAX_HEALTH );
+          health = min( health + ATTACK_VALUE , MAX_HEALTH );
 
         }
 
@@ -291,7 +291,7 @@ void loop() {
 
         if ( neighborMode == ATTACKING ) {
 
-          health = (byte) max( (int)health - ATTACK_VALUE , 0 ) ;
+          health = max( health - ATTACK_VALUE , 0 ) ;
 
           mode = INJURED;
 
@@ -332,7 +332,7 @@ void loop() {
          the less health we have, the shorter of breath
          we become
       */
-      setColor( dim( teamColor , map_m( (health * MAX_BRIGHTNESS ) / MAX_HEALTH, 0, MAX_HEALTH, 1, 255)  ) );
+      setColor( dim( teamColor , (byte) map_m( ((int)health * (int)MAX_BRIGHTNESS ) / (int)MAX_HEALTH, 0, MAX_HEALTH, 1, 255)  ) );
       break;
 
     case ENGUARDE:
