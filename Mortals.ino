@@ -21,35 +21,38 @@
    Technical Details:
    A long press on the tile changes the color of the tile for prototyping (switch state 1 or 2)
 
-   When a group of 3 is all dead and each Blink has only 2 adjacent neighbors
-   (after 2 seconds of being this way, get into ready mode)
-   When in ready mode, if connected to another ready mode Blink, choose random team, until it doesn't match
-   if teams don't match, let the games begin.
-   Let the two adjacent Blinks on your team know what team we are and start a count down for the game to begin
 
 */
 
-#define ATTACK_VALUE            5     // Amount of health you loose when attacked.
-#define ATTACK_DURRATION_MS   100     // Time between when we see first new neighbor and when we stop attacking.
-#define HEALTH_STEP_TIME_MS  1000     // Health decremented by 1 unit this often
+#define ATTACK_VALUE                5   // Amount of health you loose when attacked.
+#define ATTACK_DURRATION_MS       100   // Time between when we see first new neighbor and when we stop attacking.
+#define HEALTH_STEP_TIME_MS      1000   // Health decremented by 1 unit this often
 
-#define INJURED_DURRATION_MS  100     // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle.
+#define INJURED_DURRATION_MS      750   // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle.
+#define INJURY_DECAY_VALUE         10   // How much the injury decays each interval
+#define INJURY_DECAY_INTERVAL_MS   30   // How often we decay the the injury
 
-#define INITIAL_HEALTH         60
-#define MAX_HEALTH             90
+#define INITIAL_HEALTH             60
+#define MAX_HEALTH                 90
 
-#define MAX_TEAMS               4
+#define MAX_TEAMS                   4
 
-#define COINTOSS_FLIP_DURATION  100   // how long we commit to our cointoss for
-#define GAME_START_DURATION     300   // wait for all teammates to get the signal to start
-int health;
+#define COINTOSS_FLIP_DURATION    100   // how long we commit to our cointoss for
+#define GAME_START_DURATION       300   // wait for all teammates to get the signal to start
 
 byte team = 0;
-Color teamColor = makeColorHSB(60, 255, 255);
+
+int health;
 
 Timer healthTimer;  // Count down to next time we loose a unit of health
+Timer injuryDecayTimer; // Timing to fade away the injury
 Timer cointossTimer;
 Timer startGameTimer;
+
+byte injuryBrightness = 0;
+byte injuredFace;
+
+byte deathBrightness = 0;
 
 enum State {
   DEAD,
@@ -70,16 +73,6 @@ byte mode = DEAD;
 Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we switch back to normal ALIVE.
 // Started when we are injured to make sure we don't get injured multiple times on the same attack
 
-
-// This map() functuion is now in Arduino.h in /dev
-// It is replicated here so this skect can compile on older API commits
-
-long map_m(long x, long in_min, long in_max, long out_min, long out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-
 void setup() {
 }
 
@@ -98,7 +91,6 @@ void loop() {
   //  if (buttonLongPressed()) {
   //    // change team
   //    team = (team + 1) % MAX_TEAMS;
-  //    teamColor = makeColorHSB(60 + team * 50, 255, 255);
   //  }
 
   if ( mode != TEAM_A_COINTOSS && mode != TEAM_B_COINTOSS && mode != TEAM_A_START && mode != TEAM_B_START && mode != NEIGHBORSREADY ) {
@@ -131,9 +123,6 @@ void loop() {
       if ( mode == TEAM_B_START ) {
         team = 2;
       }
-
-      // set the team color
-      teamColor = makeColorHSB(60 + team * 50, 255, 255);
 
       // reset game piece
       mode = ALIVE;
@@ -295,6 +284,10 @@ void loop() {
 
           mode = INJURED;
 
+          injuredFace = f;  // set the face we are injured on
+
+          injuryBrightness = 255; // Start very injured
+
           modeTimeout.set( INJURED_DURRATION_MS );
 
         }
@@ -306,61 +299,42 @@ void loop() {
           mode = ALIVE;
 
         }
+        else {
+
+          if ( injuryDecayTimer.isExpired() ) {
+
+            injuryDecayTimer.set( INJURY_DECAY_INTERVAL_MS );
+
+            injuryBrightness -= INJURY_DECAY_VALUE;
+          }
+        }
       }
     }
   }
+
 
   // Update our display based on new state
 
   switch (mode) {
 
     case DEAD:
-      /*
-         animate like a ghost
-         circle around as a dimly lit soul
-      */
-      setColor(OFF);
-      FOREACH_FACE(f) {
-        setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
-      }
-      //      setColor( dim( WHITE , 127 + 126 * sin_d( (millis()/10) % 360) ) );`
+      displayGhost();
       break;
 
     case ALIVE:
-      /*
-         animate to breath
-         the less health we have, the shorter of breath
-         we become
-      */
-      setColor( dim( teamColor , (byte) map_m( ((int)health * (int)MAX_BRIGHTNESS ) / (int)MAX_HEALTH, 0, MAX_HEALTH, 1, 255)  ) );
+      displayAlive();
       break;
 
     case ENGUARDE:
-      /*
-         animate with a spin
-         wind up to deliver a punch
-         TODO: soften the spin with fades on either side...
-      */
-      setColor( OFF );
-      setFaceColor( (millis() / 100) % FACE_COUNT, teamColor );
+      displayEnguarde();
       break;
 
     case ATTACKING:
-      /*
-         animate bright on the side of the attack
-         fall off like the flash of a camera bulb
-      */
-      setColor( OFF );
-      setFaceColor( rand(FACE_COUNT), teamColor );
+      displayAttack();
       break;
 
     case INJURED:
-      /*
-         animate to bleed
-         glow red on the side we were hit
-         fall off like the flash of a camera bulb
-      */
-      setColor( RED );
+      displayInjured( injuredFace );
       break;
 
     case READY:
@@ -369,7 +343,7 @@ void loop() {
         setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
       }
 
-//      setColor( YELLOW );
+      //      setColor( YELLOW );
       break;
 
     case NEIGHBORSREADY:
@@ -378,7 +352,7 @@ void loop() {
         setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
       }
 
-//      setColor( GREEN );
+      //      setColor( GREEN );
       break;
 
     case TEAM_A_COINTOSS:
@@ -411,23 +385,141 @@ void loop() {
     //    sendValueToTeam();
   }
   else if ( mode == TEAM_A_COINTOSS || mode == TEAM_B_COINTOSS ) {
+
     sendValueToOpponent();
+
   }
   else {
-    setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
-  }
 
+    setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+
+  }
 }
 
+/*
+   This map() functuion is now in Arduino.h in /dev
+   It is replicated here so this skect can compile on older API commits
+*/
 
+long map_m(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
-// Sin in degrees ( standard sin() takes radians )
+/*
+   Sin in degrees ( standard sin() takes radians )
+*/
 
 float sin_d( uint16_t degrees ) {
 
   return sin( ( degrees / 360.0F ) * 2.0F * PI   );
 }
 
+/*
+    Function to return a brightness while breathing based on the period of the breath
+*/
+
+byte breathe(word period_ms, byte minBrightness, byte maxBrightness) {
+
+  byte brightness;
+
+
+  brightness = map_m( 50 * (1 + sin_d( (360 * ((millis() % period_ms)) / (float)period_ms ))), 0, 100, minBrightness, maxBrightness);
+
+  // TODO: if breaths are very short, be sure to focus on the extremes (i.e. light/dark)
+
+  return brightness;
+}
+
+/*
+  get the team color for our team
+*/
+Color teamColor( byte t ) {
+
+  return makeColorHSB(60 + t * 50, 255, 255);
+
+}
+
+/*
+   Display state for living Mortals
+*/
+void displayAlive() {
+  if ( health > 50 ) {
+    deathBrightness = 255;
+    setColor( dim( teamColor( team ), breathe(6400, 128, 255) ) );
+  } else if ( health <= 50 && health > 40 ) {
+    setColor( dim( teamColor( team ), breathe(3200, 96, 255) ) );
+  } else if ( health <= 40 && health > 30 ) {
+    setColor( dim( teamColor( team ), breathe(1600, 64, 255) ) );
+  } else if ( health <= 30 && health > 20 ) {
+    setColor( dim( teamColor( team ), breathe(800, 64, 255) ) );
+  } else if ( health <= 20 && health > 10 ) {
+    setColor( dim( teamColor( team ), breathe(400, 32, 255) ) );
+  } else if ( health <= 10 && health > 0 ) {
+    setColor( dim( teamColor( team ), breathe(200, 32, 255) ) );
+  } else {
+    // glow bright white and fade out when we die
+    setColor( dim(WHITE, deathBrightness) );
+    if (deathBrightness > 7) {
+      deathBrightness -= 8;
+    }
+  }
+}
+
+/*
+   Display state for injured Mortal
+   takes the face we were injured on
+
+*/
+void displayInjured(byte face) {
+
+  // first we display our health
+  displayAlive();
+
+  // then we update the side that was injured
+
+  // brighten the sides with neighbors
+  if ( injuryBrightness > 32 ) {
+    setFaceColor( face, dim( RED, injuryBrightness) );
+  }
+
+}
+
+/*
+
+*/
+void displayGhost() {
+
+  setColor(OFF);
+
+  FOREACH_FACE(f) {
+
+    setFaceColor(f, dim( RED, 32 + 32 * sin_d( (60 * f + millis() / 8) % 360)));  // slow dim rotation, just take my word for it :)
+
+  }
+}
+
+/*
+
+*/
+void displayEnguarde() {
+
+  setColor( OFF );
+
+  setFaceColor( (millis() / 100) % FACE_COUNT, teamColor( team ) );
+
+}
+
+/*
+
+*/
+void displayAttack() {
+
+  setColor( OFF );
+
+  setFaceColor( rand(FACE_COUNT), teamColor( team ) );
+
+}
 
 /*
     Determine if we are in the READY Mode
