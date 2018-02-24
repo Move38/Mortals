@@ -65,7 +65,9 @@ enum State {
   TEAM_A_COINTOSS,
   TEAM_B_COINTOSS,
   TEAM_A_START,
-  TEAM_B_START
+  TEAM_B_START,
+  TEAM_A_WIN,
+  TEAM_B_WIN
 };
 
 byte mode = DEAD;
@@ -76,6 +78,11 @@ Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we sw
 void setup() {
 }
 
+/*
+    -------------------------------------------------------------------------------------
+                                 BEGIN LOOP
+   -------------------------------------------------------------------------------------
+*/
 
 void loop() {
 
@@ -93,7 +100,22 @@ void loop() {
   //    team = (team + 1) % MAX_TEAMS;
   //  }
 
-  if ( mode != TEAM_A_COINTOSS && mode != TEAM_B_COINTOSS && mode != TEAM_A_START && mode != TEAM_B_START && mode != NEIGHBORSREADY ) {
+  // triple click if you are winner to fly your colors
+  if ( buttonMultiClicked() ) {
+
+    if ( buttonClickCount() == 3 ) {
+
+      // fly our colors
+      if ( team == 0 ) {
+        mode = TEAM_A_WIN;
+      }
+      else if ( team == 2 ) {
+        mode = TEAM_B_WIN;
+      }
+    }
+  }
+
+  if ( mode != TEAM_A_COINTOSS && mode != TEAM_B_COINTOSS && mode != TEAM_A_START && mode != TEAM_B_START && mode != NEIGHBORSREADY && mode != TEAM_A_WIN && mode != TEAM_B_WIN) {
 
     if (healthTimer.isExpired()) {
 
@@ -195,7 +217,21 @@ void loop() {
     }
   }
 
-  if ( mode == DEAD ) {
+  if ( mode == DEAD || mode == TEAM_A_WIN || mode == TEAM_B_WIN ) {
+
+    // check for win state and show it
+    FOREACH_FACE( f ) {
+      if (!isValueReceivedOnFaceExpired(f)) {
+
+        byte neighborMode = getLastValueReceivedOnFace(f);
+        if ( neighborMode == TEAM_A_WIN ) {
+          mode = TEAM_A_WIN;
+        }
+        else if ( neighborMode == TEAM_B_WIN ) {
+          mode = TEAM_B_WIN;
+        }
+      }
+    }
 
     if (isBlinkInReadyConfiguration()) {
 
@@ -312,7 +348,6 @@ void loop() {
     }
   }
 
-
   // Update our display based on new state
 
   switch (mode) {
@@ -338,43 +373,37 @@ void loop() {
       break;
 
     case READY:
-      setColor(OFF);
-      FOREACH_FACE(f) {
-        setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
-      }
-
-      //      setColor( YELLOW );
+      displayReady();
       break;
 
     case NEIGHBORSREADY:
-      setColor(OFF);
-      FOREACH_FACE(f) {
-        setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
-      }
-
-      //      setColor( GREEN );
+      displayNeighborsReady();
       break;
 
     case TEAM_A_COINTOSS:
-      setColor(OFF);
-      FOREACH_FACE(f) {
-        setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
-      }
+      displayNeighborsReady();
       break;
 
     case TEAM_B_COINTOSS:
-      setColor(OFF);
-      FOREACH_FACE(f) {
-        setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
-      }
+      displayNeighborsReady();
       break;
 
     case TEAM_A_START:
-      setColor( makeColorHSB(60 + 0 * 50, 255, 255));
+      setColor( teamColor(0) );
       break;
 
     case TEAM_B_START:
-      setColor( makeColorHSB(60 + 2 * 50, 255, 255));
+      setColor( teamColor(2) );
+      break;
+
+    case TEAM_A_WIN:
+      setColor( OFF );
+      setFaceColor( rand(5), teamColor(0) );
+      break;
+
+    case TEAM_B_WIN:
+      setColor( OFF );
+      setFaceColor( rand(5), teamColor(2) );
       break;
   }
 
@@ -395,6 +424,13 @@ void loop() {
 
   }
 }
+
+/*
+   -------------------------------------------------------------------------------------
+                                 END LOOP
+   -------------------------------------------------------------------------------------
+*/
+
 
 /*
    This map() functuion is now in Arduino.h in /dev
@@ -439,6 +475,13 @@ Color teamColor( byte t ) {
   return makeColorHSB(60 + t * 50, 255, 255);
 
 }
+
+/*
+   -------------------------------------------------------------------------------------
+                                 START DISPLAY
+   -------------------------------------------------------------------------------------
+*/
+
 
 /*
    Display state for living Mortals
@@ -520,6 +563,44 @@ void displayAttack() {
   setFaceColor( rand(FACE_COUNT), teamColor( team ) );
 
 }
+/*
+
+*/
+void displayReady() {
+
+  displayGhost();
+  //  setColor(OFF);
+  //
+  //  FOREACH_FACE(f) {
+  //    setFaceColor(f, dim( WHITE, 60 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
+  //  }
+}
+
+/*
+
+*/
+void displayNeighborsReady() {
+  
+  setColor(OFF);
+  
+  FOREACH_FACE(f) {
+    setFaceColor(f, dim( GREEN, 120 + 55 * sin_d( (60 * f + millis() / 8) % 360)));
+  }
+}
+
+/*
+   -------------------------------------------------------------------------------------
+                                 END DISPLAY
+   -------------------------------------------------------------------------------------
+*/
+
+
+/*
+   -------------------------------------------------------------------------------------
+                                 START AUTO BEGIN CHECKS
+   -------------------------------------------------------------------------------------
+*/
+
 
 /*
     Determine if we are in the READY Mode
@@ -546,7 +627,7 @@ bool isBlinkInReadyConfiguration() {
 
       byte neighborMode = getLastValueReceivedOnFace(f);
 
-      if (neighborMode != DEAD && neighborMode != READY && neighborMode != NEIGHBORSREADY) {
+      if (neighborMode != DEAD && neighborMode != READY && neighborMode != NEIGHBORSREADY && neighborMode != TEAM_A_WIN && neighborMode != TEAM_B_WIN ) {
         return false;
       }
     }
@@ -816,4 +897,11 @@ bool isNotTeamCaptain() {
     return ( numNeighbors != 3 );
   }
 }
+
+/*
+   -------------------------------------------------------------------------------------
+                                 END AUTO BEGIN CHECKS
+   -------------------------------------------------------------------------------------
+*/
+
 
