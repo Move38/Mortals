@@ -91,7 +91,19 @@ void loop() {
 
     if (health > 0) {
 
-      health--;
+      byte numDeadNeighbors = 0;
+
+      //Dead Blinks will also drain life
+      FOREACH_FACE(f) {
+        if (!isValueReceivedOnFaceExpired(f)) {
+          if (getLastValueReceivedOnFace(f) == DEAD) {
+            numDeadNeighbors++;
+          }
+        }
+      }
+
+      //Remove extra health for every dead neighbor attached
+      health = (health - 1) - numDeadNeighbors;
       healthTimer.set(HEALTH_STEP_TIME_MS);
 
     } else {
