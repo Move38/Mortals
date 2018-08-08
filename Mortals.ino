@@ -26,7 +26,7 @@
 
 #define ATTACK_VALUE                5   // Amount of health you loose when attacked.
 #define ATTACK_DURRATION_MS       100   // Time between when we see first new neighbor and when we stop attacking.
-#define HEALTH_STEP_TIME_MS      1000   // Health decremented by 1 unit this often
+#define DRAIN_STEP_TIME_MS      1000   // Health decremented by 1 unit this often
 
 #define INJURED_DURRATION_MS      750   // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle.
 #define INJURY_DECAY_VALUE         10   // How much the injury decays each interval
@@ -44,7 +44,7 @@ byte team = 0;
 
 int health;
 
-Timer healthTimer;  // Count down to next time we loose a unit of health
+Timer drainTimer;
 Timer injuryDecayTimer; // Timing to fade away the injury
 
 byte injuryBrightness = 0;
@@ -52,34 +52,96 @@ byte injuredFace;
 
 byte deathBrightness = 0;
 
-enum State {
+enum moveState {
+  STILL,
+  START_MOVE,
+  END_MOVE
+};
+
+byte turnMode = STILL;
+
+byte turnModeReceived;
+
+bool neighborStates[6];
+
+enum gameState {
   DEAD,
   ALIVE,
   ENGUARDE,   // I am ready to attack!
   ATTACKING,  // Short window when I have already come across my first victim and started attacking
-  INJURED
+  INJURED,
+  YELL,
+  CALM
 };
 
-byte mode = DEAD;
+byte gameMode = DEAD;
+
+byte gameModeReceived;
+
+byte totalMoves;
+
+bool bMoveCompleted = false;
 
 Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we switch back to normal ALIVE.
 // Started when we are injured to make sure we don't get injured multiple times on the same attack
 
+//Debugging code
+#include "Serial.h"
+
+ServicePortSerial Serial;
 
 void setup() {
   // perhaps we should initialize everything here to be safe
+  Serial.begin();
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      neighborStates[f] = true;
+    } else {
+      neighborStates[f] = false;
+    }
+  }
+
 }
 
 
 void loop() {
 
+  Serial.println(health);
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      byte dataReceived = getLastValueReceivedOnFace(f);
+      gameModeReceived = dataReceived % 10;
+      turnModeReceived = (dataReceived - gameModeReceived) / 10;
+    }
+  }
+
+  /*
+     First set up the switch statement that will handle when a turn is done
+  */
+  switch (turnMode) {
+    case STILL: stillLoop(); break;
+    case START_MOVE: moveStartLoop(); break;
+    case END_MOVE: moveEndLoop(); break;
+  }
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      neighborStates[f] = true;
+    } else {
+      neighborStates[f] = false;
+    }
+  }
+
+  //setValueSentOnAllFaces(turnMode); //relay our game state to our neighbors
+
   // Update our mode first
 
   if (buttonDoubleClicked()) {
     // reset game piece
-    mode = ALIVE;
+    gameMode = ALIVE;
     health = INITIAL_HEALTH;
-    healthTimer.set(HEALTH_STEP_TIME_MS);
   }
 
   if (buttonLongPressed()) {
@@ -87,42 +149,55 @@ void loop() {
     team = (team + 1) % MAX_TEAMS;
   }
 
-  if (healthTimer.isExpired()) {
+  if (health > 0) {
+    if (bMoveCompleted == true) {
+      byte numDeadNeighbors = 0;
 
-    if (health > 0) {
+      //Dead Blinks will also drain life
+      FOREACH_FACE(f) {
+        if (!isValueReceivedOnFaceExpired(f)) {
+          if (getLastValueReceivedOnFace(f) == DEAD) {
+            numDeadNeighbors++;
+          }
+        }
+      }
 
-      health--;
-      healthTimer.set(HEALTH_STEP_TIME_MS);
-
-    } else {
-
-      mode = DEAD;
-
+      //Remove extra health for every dead neighbor attached
+      if (gameMode != ATTACKING) {
+        health -= 5 + (numDeadNeighbors * 5);
+        gameMode = ALIVE;
+        bMoveCompleted = false;
+      } else {
+        health += 10; 
+        gameMode = ALIVE;
+      }
     }
+  } else {
+
+    gameMode = DEAD;
 
   }
 
-  if ( mode != DEAD ) {
+  if ( gameMode != DEAD ) {
 
     if (isAlone()) {
 
-      mode = ENGUARDE;      // Being lonesome makes us ready to attack!
+      gameMode = ENGUARDE;      // Being lonesome makes us ready to attack!
 
     } else {  // !isAlone()
 
-      if (mode == ENGUARDE) {   // We were ornery, but saw someone so we begin our attack in earnest!
+      if (gameMode == ENGUARDE) {   // We were ornery, but saw someone so we begin our attack in earnest!
 
-        mode = ATTACKING;
+        gameMode = ATTACKING;
         modeTimeout.set( ATTACK_DURRATION_MS );
       }
 
     }
 
-
-    if (mode == ATTACKING || mode == INJURED ) {
+    if (gameMode == ATTACKING || gameMode == INJURED ) {
 
       if (modeTimeout.isExpired()) {
-        mode = ALIVE;
+        gameMode = ALIVE;
       }
     }
   } // !DEAD
@@ -135,25 +210,30 @@ void loop() {
 
       byte neighborMode = getLastValueReceivedOnFace(f);
 
-      if ( mode == ATTACKING ) {
+      //      if (neighborMode == YELL) {
+      //        mode = YELL;
+      //      }
+
+      if ( gameMode == ATTACKING ) {
 
         // We take our flesh when we see that someone we attacked is actually injured
+
 
         if ( neighborMode == INJURED ) {
 
           // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
           health = min( health + ATTACK_VALUE , MAX_HEALTH );
-
+          
         }
 
-      } else if ( mode == ALIVE ) {
+      } else if ( gameMode == ALIVE ) {
 
         if ( neighborMode == ATTACKING ) {
 
           health = max( health - ATTACK_VALUE , 0 ) ;
 
-          mode = INJURED;
+          gameMode = INJURED;
 
           injuredFace = f;  // set the face we are injured on
 
@@ -163,30 +243,30 @@ void loop() {
 
         }
 
-      } else if (mode == INJURED) {
+      } else if (gameMode == INJURED) {
 
         if (modeTimeout.isExpired()) {
-
-          mode = ALIVE;
-
+          gameMode = ALIVE;
         }
         else {
 
+          //Animate bright red and fade out over the course of
           if ( injuryDecayTimer.isExpired() ) {
 
             injuryDecayTimer.set( INJURY_DECAY_INTERVAL_MS );
 
             injuryBrightness -= INJURY_DECAY_VALUE;
+
+
           }
         }
       }
     }
   }
 
-
   // Update our display based on new state
 
-  switch (mode) {
+  switch (gameMode) {
 
     case DEAD:
       displayGhost();
@@ -210,10 +290,59 @@ void loop() {
   }
 
 
-  setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+  //setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+
+  byte sendData = (turnMode * 10) + gameMode;
+
+  setValueSentOnAllFaces(sendData);
 
 }
 
+
+/*
+   TURN MODE LOOPS
+*/
+void stillLoop () {
+  //check surroundings for MISSING NEIGHBORS or neighbors already in distress
+  FOREACH_FACE(f) {
+    if (isValueReceivedOnFaceExpired(f) && neighborStates[f] == true) { //missing neighbor
+      turnMode = START_MOVE;
+    } else if (!isValueReceivedOnFaceExpired(f) && turnModeReceived == START_MOVE) { //detecting a distressed neighbor
+      turnMode = START_MOVE;
+    }
+  }
+
+}
+
+void moveStartLoop () {
+
+  //check surroundings for NEW NEIGHBORS or neighbors in the resolution state
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f) && neighborStates[f] == false) { //new neighbor
+      turnMode = END_MOVE;
+    } else if (!isValueReceivedOnFaceExpired(f) && turnModeReceived == END_MOVE) { //next to a resolved neighbor
+      turnMode = END_MOVE;
+    }
+  }
+
+
+}
+
+void moveEndLoop () {
+  turnMode = STILL;
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f) && turnModeReceived == START_MOVE) {
+      turnMode = END_MOVE;
+    }
+  }
+
+  if (turnMode == STILL) {
+    //This happens once at the end of the move
+    totalMoves++;
+    bMoveCompleted = true;
+  }
+
+}
 
 /*
    This map() functuion is now in Arduino.h in /dev
@@ -269,24 +398,15 @@ Color teamColor( byte t ) {
    Display state for living Mortals
 */
 void displayAlive() {
-  if ( health > 50 ) {
-    deathBrightness = 255;
-    setColor( dim( teamColor( team ), breathe(6400, 128, 255) ) );
-  } else if ( health <= 50 && health > 40 ) {
-    setColor( dim( teamColor( team ), breathe(3200, 96, 255) ) );
-  } else if ( health <= 40 && health > 30 ) {
-    setColor( dim( teamColor( team ), breathe(1600, 64, 255) ) );
-  } else if ( health <= 30 && health > 20 ) {
-    setColor( dim( teamColor( team ), breathe(800, 64, 255) ) );
-  } else if ( health <= 20 && health > 10 ) {
-    setColor( dim( teamColor( team ), breathe(400, 32, 255) ) );
-  } else if ( health <= 10 && health > 0 ) {
-    setColor( dim( teamColor( team ), breathe(200, 32, 255) ) );
-  } else {
-    // glow bright white and fade out when we die
-    setColor( dim(WHITE, deathBrightness) );
-    if (deathBrightness > 7) {
-      deathBrightness -= 8;
+
+  byte displayHealth = health / 10;
+
+  //Look at each face, if the face is greater than the integer of health, turn it off. If it's less than, turn it on.
+  FOREACH_FACE(f) {
+    if (f > displayHealth) {
+      setFaceColor(f, OFF);
+    } else {//(f < displayHealth)
+      setFaceColor(f, teamColor(team));
     }
   }
 }
