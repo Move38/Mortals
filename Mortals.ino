@@ -69,9 +69,7 @@ enum gameState {
   ALIVE,
   ENGUARDE,   // I am ready to attack!
   ATTACKING,  // Short window when I have already come across my first victim and started attacking
-  INJURED,
-  YELL,
-  CALM
+  INJURED
 };
 
 byte gameMode = DEAD;
@@ -107,8 +105,23 @@ void setup() {
 
 void loop() {
 
-  Serial.println(health);
+  //Debug code
+  Serial.println(gameMode);
 
+  //Reset the game to the initial state
+  if (buttonDoubleClicked()) {
+    // reset game piece
+    gameMode = ALIVE;
+    health = INITIAL_HEALTH;
+  }
+
+  //Change teams by long pressing
+  if (buttonLongPressed()) {
+    // change team
+    team = (team + 1) % MAX_TEAMS;
+  }
+
+  //Get the data from other Blinks and dissect the data into the other Blink's turnMode and gameMode
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
       byte dataReceived = getLastValueReceivedOnFace(f);
@@ -116,6 +129,7 @@ void loop() {
       turnModeReceived = (dataReceived - gameModeReceived) / 10;
     }
   }
+
 
   /*
      First set up the switch statement that will handle when a turn is done
@@ -134,133 +148,10 @@ void loop() {
     }
   }
 
-  //setValueSentOnAllFaces(turnMode); //relay our game state to our neighbors
+  if (gameMode == ATTACKING || gameMode == INJURED ) {
 
-  // Update our mode first
-
-  if (buttonDoubleClicked()) {
-    // reset game piece
-    gameMode = ALIVE;
-    health = INITIAL_HEALTH;
-  }
-
-  if (buttonLongPressed()) {
-    // change team
-    team = (team + 1) % MAX_TEAMS;
-  }
-
-  if (health > 0) {
-    if (bMoveCompleted == true) {
-      byte numDeadNeighbors = 0;
-
-      //Dead Blinks will also drain life
-      FOREACH_FACE(f) {
-        if (!isValueReceivedOnFaceExpired(f)) {
-          if (getLastValueReceivedOnFace(f) == DEAD) {
-            numDeadNeighbors++;
-          }
-        }
-      }
-
-      //Remove extra health for every dead neighbor attached
-      if (gameMode != ATTACKING) {
-        health -= 5 + (numDeadNeighbors * 5);
-        gameMode = ALIVE;
-        bMoveCompleted = false;
-      } else {
-        health += 10; 
-        gameMode = ALIVE;
-      }
-    }
-  } else {
-
-    gameMode = DEAD;
-
-  }
-
-  if ( gameMode != DEAD ) {
-
-    if (isAlone()) {
-
-      gameMode = ENGUARDE;      // Being lonesome makes us ready to attack!
-
-    } else {  // !isAlone()
-
-      if (gameMode == ENGUARDE) {   // We were ornery, but saw someone so we begin our attack in earnest!
-
-        gameMode = ATTACKING;
-        modeTimeout.set( ATTACK_DURRATION_MS );
-      }
-
-    }
-
-    if (gameMode == ATTACKING || gameMode == INJURED ) {
-
-      if (modeTimeout.isExpired()) {
-        gameMode = ALIVE;
-      }
-    }
-  } // !DEAD
-
-  // check our surroundings
-  FOREACH_FACE(f) {
-
-
-    if (!isValueReceivedOnFaceExpired(f)) {
-
-      byte neighborMode = getLastValueReceivedOnFace(f);
-
-      //      if (neighborMode == YELL) {
-      //        mode = YELL;
-      //      }
-
-      if ( gameMode == ATTACKING ) {
-
-        // We take our flesh when we see that someone we attacked is actually injured
-
-
-        if ( neighborMode == INJURED ) {
-
-          // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
-
-          health = min( health + ATTACK_VALUE , MAX_HEALTH );
-          
-        }
-
-      } else if ( gameMode == ALIVE ) {
-
-        if ( neighborMode == ATTACKING ) {
-
-          health = max( health - ATTACK_VALUE , 0 ) ;
-
-          gameMode = INJURED;
-
-          injuredFace = f;  // set the face we are injured on
-
-          injuryBrightness = 255; // Start very injured
-
-          modeTimeout.set( INJURED_DURRATION_MS );
-
-        }
-
-      } else if (gameMode == INJURED) {
-
-        if (modeTimeout.isExpired()) {
-          gameMode = ALIVE;
-        }
-        else {
-
-          //Animate bright red and fade out over the course of
-          if ( injuryDecayTimer.isExpired() ) {
-
-            injuryDecayTimer.set( INJURY_DECAY_INTERVAL_MS );
-
-            injuryBrightness -= INJURY_DECAY_VALUE;
-
-
-          }
-        }
-      }
+    if (modeTimeout.isExpired()) {
+      gameMode = ALIVE;
     }
   }
 
@@ -274,23 +165,26 @@ void loop() {
 
     case ALIVE:
       displayAlive();
+      aliveMode();
       break;
 
     case ENGUARDE:
       displayEnguarde();
+      enguardeMode();
       break;
 
     case ATTACKING:
       displayAttack();
+      attackMode();
       break;
 
     case INJURED:
       displayInjured( injuredFace );
+      injuredMode();
       break;
   }
 
-
-  //setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+  //Get your turn and game modes and send them both
 
   byte sendData = (turnMode * 10) + gameMode;
 
@@ -340,6 +234,113 @@ void moveEndLoop () {
     //This happens once at the end of the move
     totalMoves++;
     bMoveCompleted = true;
+  }
+
+}
+
+/*
+   GAME MODE FUNCTIONS
+*/
+
+void aliveMode() {
+
+  FOREACH_FACE(f) {
+
+    if (!isValueReceivedOnFaceExpired(f)) {
+
+      byte neighborMode = getLastValueReceivedOnFace(f) % 10;
+
+      //If someone is attacking you
+      if ( gameModeReceived == ATTACKING ) {
+
+        gameMode = INJURED;
+
+        injuredFace = f;  // set the face we are injured on
+
+        injuryBrightness = 255; // Start very injured
+
+        modeTimeout.set( INJURED_DURRATION_MS );
+
+      }
+
+    }
+  }
+
+  //If you are alone, ENGUARDE!
+  if (isAlone()) {
+
+    gameMode = ENGUARDE;      // Being lonesome makes us ready to attack!
+
+  }
+
+}
+
+void enguardeMode() {
+  if (!isAlone()) {
+    gameMode = ATTACKING;
+    modeTimeout.set(ATTACK_DURRATION_MS);
+  }
+}
+
+void attackMode() {
+
+  FOREACH_FACE(f) {
+
+    if (!isValueReceivedOnFaceExpired(f)) {
+
+      byte neighborMode = getLastValueReceivedOnFace(f) % 10;
+
+      if ( gameModeReceived == INJURED ) {
+
+        // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
+
+        health = min( health + ATTACK_VALUE , MAX_HEALTH );
+        gameMode = ALIVE;
+      }
+    }
+  }
+}
+
+void injuredMode() {
+
+  if (health > 0) {
+    if (bMoveCompleted == true) {
+
+      byte numDeadNeighbors = 0;
+
+      //Dead Blinks will also drain life
+      FOREACH_FACE(f) {
+        if (!isValueReceivedOnFaceExpired(f)) {
+          if (getLastValueReceivedOnFace(f) == DEAD) {
+            numDeadNeighbors++;
+          }
+        }
+      }
+
+      //Remove extra health for every dead neighbor attached
+      health = max( health - (ATTACK_VALUE + (numDeadNeighbors * 5)), 0 ) ;
+      gameMode = ALIVE;
+      bMoveCompleted = false;
+    }
+  } else {
+
+    gameMode = DEAD;
+
+  }
+
+
+  if (modeTimeout.isExpired()) {
+    gameMode = ALIVE;
+  }
+
+  //Animate bright red and fade out over the course of
+  if ( injuryDecayTimer.isExpired() ) {
+
+    injuryDecayTimer.set( INJURY_DECAY_INTERVAL_MS );
+
+    injuryBrightness -= INJURY_DECAY_VALUE;
+
+
   }
 
 }
