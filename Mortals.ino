@@ -128,7 +128,7 @@ void loop() {
     if (!isValueReceivedOnFaceExpired(f)) {
       byte dataReceived = getLastValueReceivedOnFace(f);
       gameModeReceived = dataReceived % 10;
-      turnModeReceived = (dataReceived - gameModeReceived) / 10;
+      turnModeReceived = dataReceived / 10; // rounds down (i.e. 9/10 = 0)
     }
   }
 
