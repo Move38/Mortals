@@ -69,7 +69,9 @@ enum gameState {
   ALIVE,
   ENGUARDE,   // I am ready to attack!
   ATTACKING,  // Short window when I have already come across my first victim and started attacking
-  INJURED
+  INJURED,
+  YELL,
+  CALM
 };
 
 byte gameMode = DEAD;
@@ -106,7 +108,7 @@ void setup() {
 void loop() {
 
   //Debug code
-  Serial.println(gameMode);
+  Serial.println(health);
 
   //Reset the game to the initial state
   if (buttonDoubleClicked()) {
@@ -182,6 +184,14 @@ void loop() {
       displayInjured( injuredFace );
       injuredMode();
       break;
+
+    case YELL:
+      yellMode();
+      break;
+
+     case CALM:
+     calmMode();
+     break;
   }
 
   //Get your turn and game modes and send them both
@@ -251,7 +261,7 @@ void aliveMode() {
       byte neighborMode = getLastValueReceivedOnFace(f) % 10;
 
       //If someone is attacking you
-      if ( gameModeReceived == ATTACKING ) {
+      if ( neighborMode == ATTACKING ) {
 
         gameMode = INJURED;
 
@@ -303,23 +313,24 @@ void attackMode() {
 
 void injuredMode() {
 
+
   if (health > 0) {
     if (bMoveCompleted == true) {
-
+      
       byte numDeadNeighbors = 0;
 
       //Dead Blinks will also drain life
       FOREACH_FACE(f) {
         if (!isValueReceivedOnFaceExpired(f)) {
-          if (getLastValueReceivedOnFace(f) == DEAD) {
+          if (gameModeReceived == DEAD) {
             numDeadNeighbors++;
+            Serial.println (numDeadNeighbors);
           }
         }
       }
 
       //Remove extra health for every dead neighbor attached
       health = max( health - (ATTACK_VALUE + (numDeadNeighbors * 5)), 0 ) ;
-      gameMode = ALIVE;
       bMoveCompleted = false;
     }
   } else {
@@ -327,7 +338,6 @@ void injuredMode() {
     gameMode = DEAD;
 
   }
-
 
   if (modeTimeout.isExpired()) {
     gameMode = ALIVE;
@@ -343,6 +353,14 @@ void injuredMode() {
 
   }
 
+}
+
+void yellMode(){
+  
+}
+
+void calmMode(){
+  
 }
 
 /*
