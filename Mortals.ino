@@ -60,9 +60,9 @@ enum moveState {
 
 byte turnMode = STILL;
 
-byte turnModeReceived;
+byte turnModeReceived[6];
 
-bool neighborStates[6];
+bool isNeighborPresent[6];
 
 enum gameState {
   DEAD,
@@ -76,7 +76,7 @@ enum gameState {
 
 byte gameMode = DEAD;
 
-byte gameModeReceived;
+byte gameModeReceived[6];
 
 byte totalMoves;
 
@@ -96,9 +96,9 @@ void setup() {
 
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
-      neighborStates[f] = true;
+      isNeighborPresent[f] = true;
     } else {
-      neighborStates[f] = false;
+      isNeighborPresent[f] = false;
     }
   }
 
@@ -127,8 +127,8 @@ void loop() {
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
       byte dataReceived = getLastValueReceivedOnFace(f);
-      gameModeReceived = dataReceived % 10;
-      turnModeReceived = dataReceived / 10; // rounds down (i.e. 9/10 = 0)
+      gameModeReceived[f] = dataReceived % 10;
+      turnModeReceived[f] = dataReceived / 10; // rounds down (i.e. 9/10 = 0)
     }
   }
 
@@ -137,17 +137,14 @@ void loop() {
      First set up the switch statement that will handle when a turn is done
   */
   switch (turnMode) {
-    case STILL: stillLoop(); break;
-    case START_MOVE: moveStartLoop(); break;
-    case END_MOVE: moveEndLoop(); break;
+    case STILL:       stillLoop();      break;
+    case START_MOVE:  moveStartLoop();  break;
+    case END_MOVE:    moveEndLoop();    break;
   }
 
+  // keep track of our previous state of neighbors to understand when a turn has started or ended
   FOREACH_FACE(f) {
-    if (!isValueReceivedOnFaceExpired(f)) {
-      neighborStates[f] = true;
-    } else {
-      neighborStates[f] = false;
-    }
+    isNeighborPresent[f] = !isValueReceivedOnFaceExpired(f);
   }
 
   if (gameMode == ATTACKING || gameMode == INJURED ) {
@@ -166,23 +163,23 @@ void loop() {
       break;
 
     case ALIVE:
-      displayAlive();
       aliveMode();
+      displayAlive();
       break;
 
     case ENGUARDE:
-      displayEnguarde();
       enguardeMode();
+      displayEnguarde();
       break;
 
     case ATTACKING:
-      displayAttack();
       attackMode();
+      displayAttack();
       break;
 
     case INJURED:
-      displayInjured( injuredFace );
       injuredMode();
+      displayInjured( injuredFace );
       break;
 
     case YELL:
@@ -209,9 +206,9 @@ void loop() {
 void stillLoop () {
   //check surroundings for MISSING NEIGHBORS or neighbors already in distress
   FOREACH_FACE(f) {
-    if (isValueReceivedOnFaceExpired(f) && neighborStates[f] == true) { //missing neighbor
+    if (isValueReceivedOnFaceExpired(f) && isNeighborPresent[f] == true) { //missing neighbor
       turnMode = START_MOVE;
-    } else if (!isValueReceivedOnFaceExpired(f) && turnModeReceived == START_MOVE) { //detecting a distressed neighbor
+    } else if (!isValueReceivedOnFaceExpired(f) && turnModeReceived[f] == START_MOVE) { //detecting a distressed neighbor
       turnMode = START_MOVE;
     }
   }
@@ -222,9 +219,9 @@ void moveStartLoop () {
 
   //check surroundings for NEW NEIGHBORS or neighbors in the resolution state
   FOREACH_FACE(f) {
-    if (!isValueReceivedOnFaceExpired(f) && neighborStates[f] == false) { //new neighbor
+    if (!isValueReceivedOnFaceExpired(f) && isNeighborPresent[f] == false) { //new neighbor
       turnMode = END_MOVE;
-    } else if (!isValueReceivedOnFaceExpired(f) && turnModeReceived == END_MOVE) { //next to a resolved neighbor
+    } else if (!isValueReceivedOnFaceExpired(f) && turnModeReceived[f] == END_MOVE) { //next to a resolved neighbor
       turnMode = END_MOVE;
     }
   }
@@ -235,7 +232,7 @@ void moveStartLoop () {
 void moveEndLoop () {
   turnMode = STILL;
   FOREACH_FACE(f) {
-    if (!isValueReceivedOnFaceExpired(f) && turnModeReceived == START_MOVE) {
+    if (!isValueReceivedOnFaceExpired(f) && turnModeReceived[f] == START_MOVE) {
       turnMode = END_MOVE;
     }
   }
@@ -300,7 +297,7 @@ void attackMode() {
 
       byte neighborMode = getLastValueReceivedOnFace(f) % 10;
 
-      if ( gameModeReceived == INJURED ) {
+      if ( gameModeReceived[f] == INJURED ) {
 
         // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
@@ -322,7 +319,7 @@ void injuredMode() {
       //Dead Blinks will also drain life
       FOREACH_FACE(f) {
         if (!isValueReceivedOnFaceExpired(f)) {
-          if (gameModeReceived == DEAD) {
+          if (gameModeReceived[f] == DEAD) {
             numDeadNeighbors++;
             Serial.println (numDeadNeighbors);
           }
