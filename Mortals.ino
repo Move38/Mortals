@@ -23,6 +23,8 @@
 
 
 */
+#define ZOMBIE_VALUE                5   // Amount of health you loose when attacked by the dead
+#define LIFE_DRAIN_VALUE            5   // Amount of health you loose when attacked by the dead
 
 #define ATTACK_VALUE                5   // Amount of health you loose when attacked.
 #define ATTACK_DURRATION_MS       100   // Time between when we see first new neighbor and when we stop attacking.
@@ -186,9 +188,9 @@ void loop() {
       yellMode();
       break;
 
-     case CALM:
-     calmMode();
-     break;
+    case CALM:
+      calmMode();
+      break;
   }
 
   //Get your turn and game modes and send them both
@@ -269,8 +271,24 @@ void aliveMode() {
         modeTimeout.set( INJURED_DURRATION_MS );
 
       }
-
     }
+  }
+
+  // if move completed, let our dead neighbors suck our life away
+  if (bMoveCompleted) {
+    byte numDeadNeighbors = 0;
+
+    //Dead Blinks will also drain life
+    FOREACH_FACE(f) {
+      if (!isValueReceivedOnFaceExpired(f)) {
+        if (gameModeReceived[f] == DEAD) {
+          numDeadNeighbors++;
+          Serial.println (numDeadNeighbors);
+        }
+      }
+    }
+    health = max(health - (LIFE_DRAIN_VALUE + ZOMBIE_VALUE * numDeadNeighbors), 0);
+    bMoveCompleted = false;
   }
 
   //If you are alone, ENGUARDE!
@@ -301,8 +319,13 @@ void attackMode() {
 
         // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
-        health = min( health + ATTACK_VALUE , MAX_HEALTH );
-        gameMode = ALIVE;
+        // only add health once on the end of the move (or return to idle/still)
+
+        if (bMoveCompleted) {
+          health = min( health + ATTACK_VALUE , MAX_HEALTH );
+          gameMode = ALIVE;
+          bMoveCompleted = false;
+        }
       }
     }
   }
@@ -312,22 +335,9 @@ void injuredMode() {
 
 
   if (health > 0) {
-    if (bMoveCompleted == true) {
-      
-      byte numDeadNeighbors = 0;
-
-      //Dead Blinks will also drain life
-      FOREACH_FACE(f) {
-        if (!isValueReceivedOnFaceExpired(f)) {
-          if (gameModeReceived[f] == DEAD) {
-            numDeadNeighbors++;
-            Serial.println (numDeadNeighbors);
-          }
-        }
-      }
-
-      //Remove extra health for every dead neighbor attached
-      health = max( health - (ATTACK_VALUE + (numDeadNeighbors * 5)), 0 ) ;
+    if (bMoveCompleted) {
+      //Remove extra health for being injured
+      health = max( health - ATTACK_VALUE, 0 ) ;
       bMoveCompleted = false;
     }
   } else {
@@ -352,12 +362,12 @@ void injuredMode() {
 
 }
 
-void yellMode(){
-  
+void yellMode() {
+
 }
 
-void calmMode(){
-  
+void calmMode() {
+
 }
 
 /*
