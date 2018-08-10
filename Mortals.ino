@@ -71,9 +71,7 @@ enum gameState {
   ALIVE,
   ENGUARDE,   // I am ready to attack!
   ATTACKING,  // Short window when I have already come across my first victim and started attacking
-  INJURED,
-  YELL,
-  CALM
+  INJURED
 };
 
 byte gameMode = DEAD;
@@ -184,13 +182,6 @@ void loop() {
       displayInjured( injuredFace );
       break;
 
-    case YELL:
-      yellMode();
-      break;
-
-    case CALM:
-      calmMode();
-      break;
   }
 
   //Get your turn and game modes and send them both
