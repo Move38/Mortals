@@ -159,6 +159,7 @@ void loop() {
   switch (gameMode) {
 
     case DEAD:
+      deadMode();
       displayGhost();
       break;
 
@@ -182,6 +183,12 @@ void loop() {
       displayInjured( injuredFace );
       break;
 
+  }
+
+  switch (turnMode) {
+    case STILL:       setColorOnFace(MAGENTA, 0);      break;
+    case START_MOVE:  setColorOnFace(ORANGE, 0);       break;
+    case END_MOVE:    setColorOnFace(CYAN, 0);        break;
   }
 
   //Get your turn and game modes and send them both
@@ -278,7 +285,13 @@ void aliveMode() {
         }
       }
     }
-    health = max(health - (LIFE_DRAIN_VALUE + ZOMBIE_VALUE * numDeadNeighbors), 0);
+    health = max(health - LIFE_DRAIN_VALUE, 0);   // remove health from turn completion
+    health = max(health - ZOMBIE_VALUE * numDeadNeighbors, 0); // remove health for every zombie attached
+
+    if (gameMode == INJURED) {
+      health = max(health - ATTACK_VALUE, 0); // remove health if attacked
+    }
+
     bMoveCompleted = false;
   }
 
@@ -353,13 +366,10 @@ void injuredMode() {
 
 }
 
-void yellMode() {
-
+void deadMode() {
+  // don't need to do anything here except pass move progress if need be
 }
 
-void calmMode() {
-
-}
 
 /*
    This map() functuion is now in Arduino.h in /dev
