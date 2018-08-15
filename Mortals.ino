@@ -28,7 +28,7 @@
 
 #define ATTACK_VALUE                5   // Amount of health you loose when attacked.
 #define ATTACK_DURRATION_MS       100   // Time between when we see first new neighbor and when we stop attacking.
-#define DRAIN_STEP_TIME_MS      1000   // Health decremented by 1 unit this often
+#define DRAIN_STEP_TIME_MS       1000   // Health decremented by 1 unit this often
 
 #define INJURED_DURRATION_MS      750   // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle.
 #define INJURY_DECAY_VALUE         10   // How much the injury decays each interval
@@ -274,34 +274,40 @@ void aliveMode() {
 
   // if move completed, let our dead neighbors suck our life away
   if (bMoveCompleted) {
-    byte numDeadNeighbors = 0;
 
-    //Dead Blinks will also drain life
-    FOREACH_FACE(f) {
-      if (!isValueReceivedOnFaceExpired(f)) {
-        if (gameModeReceived[f] == DEAD) {
-          numDeadNeighbors++;
-          Serial.println (numDeadNeighbors);
+    if ( health > 0 ) {
+      byte numDeadNeighbors = 0;
+
+      //Dead Blinks will also drain life
+      FOREACH_FACE(f) {
+        if (!isValueReceivedOnFaceExpired(f)) {
+          if (gameModeReceived[f] == DEAD) {
+            numDeadNeighbors++;
+            Serial.println (numDeadNeighbors);
+          }
         }
       }
-    }
-    health = max(health - LIFE_DRAIN_VALUE, 0);   // remove health from turn completion
-    health = max(health - ZOMBIE_VALUE * numDeadNeighbors, 0); // remove health for every zombie attached
+      health = max(health - LIFE_DRAIN_VALUE, 0);   // remove health from turn completion
+      health = max(health - ZOMBIE_VALUE * numDeadNeighbors, 0); // remove health for every zombie attached
 
-    if (gameMode == INJURED) {
-      health = max(health - ATTACK_VALUE, 0); // remove health if attacked
-    }
+      if (gameMode == INJURED) {
+        health = max(health - ATTACK_VALUE, 0); // remove health if attacked
+      }
 
-    bMoveCompleted = false;
+      bMoveCompleted = false;
+
+    }
+    else {
+      gameMode = DEAD;
+    }
   }
-
+  
   //If you are alone, ENGUARDE!
   if (isAlone()) {
 
     gameMode = ENGUARDE;      // Being lonesome makes us ready to attack!
 
   }
-
 }
 
 void enguardeMode() {
@@ -339,11 +345,9 @@ void injuredMode() {
 
 
   if (health > 0) {
-    if (bMoveCompleted) {
-      //Remove extra health for being injured
-      health = max( health - ATTACK_VALUE, 0 ) ;
-      bMoveCompleted = false;
-    }
+
+    // nothing to do here (our life was sucked when alive)
+
   } else {
 
     gameMode = DEAD;
@@ -354,6 +358,8 @@ void injuredMode() {
     gameMode = ALIVE;
   }
 
+  // TODO: "get your animation out of my game logic" -Jon
+  // NOTE: Jon did this in the first place :)
   //Animate bright red and fade out over the course of
   if ( injuryDecayTimer.isExpired() ) {
 
