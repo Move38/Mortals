@@ -207,15 +207,6 @@ void loop() {
           mode = ALIVE;
 
         }
-        else {
-
-          if ( injuryDecayTimer.isExpired() ) {
-
-            injuryDecayTimer.set( INJURY_DECAY_INTERVAL_MS );
-
-            injuryBrightness -= INJURY_DECAY_VALUE;
-          }
-        }
       }
     }
   }
@@ -261,66 +252,13 @@ void loop() {
 
 
 /*
-   This map() functuion is now in Arduino.h in /dev
-   It is replicated here so this skect can compile on older API commits
-*/
-
-long map_m(long x, long in_min, long in_max, long out_min, long out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-/*
-   Sin in degrees ( standard sin() takes radians )
-*/
-
-float sin_d( uint16_t degrees ) {
-
-  return sin( ( degrees / 360.0F ) * 2.0F * PI   );
-}
-
-/*
-    Function to return a brightness while breathing based on the period of the breath
-*/
-
-byte breathe(word period_ms, byte minBrightness, byte maxBrightness) {
-
-  byte brightness;
-
-
-  brightness = map_m( 50 * (1 + sin_d( (360 * ((millis() % period_ms)) / (float)period_ms ))), 0, 100, minBrightness, maxBrightness);
-
-  // TODO: if breaths are very short, be sure to focus on the extremes (i.e. light/dark)
-
-  return brightness;
-}
-
-/*
-  get the team color for our team
-*/
-Color teamColor( byte t ) {
-
-  return makeColorHSB(60 + t * 50, 255, 255);
-
-}
-
-byte getGameMode(byte data) {
-  return data & 7;  // 00000111 -> keeps the last 3 digits in binary
-}
-
-byte getGameState(byte data) {
-  return data >> 3; // 00000XXX -> moves all digits to the right 3 times
-}
-
-
-/*
    -------------------------------------------------------------------------------------
                                  START GAME LOGIC
    -------------------------------------------------------------------------------------
 */
 void changeGameState(byte state) {
-     
-  switch(state) {
+
+  switch (state) {
     case PLAY:          break;
     case WAITING:       break;
     case START:   startTimer.set(START_DELAY);  break;
@@ -435,6 +373,10 @@ void displayInjured(byte face) {
   displayAlive();
 
   // then we update the side that was injured
+  if ( injuryDecayTimer.isExpired() ) {
+    injuryDecayTimer.set( INJURY_DECAY_INTERVAL_MS );
+    injuryBrightness -= INJURY_DECAY_VALUE;
+  }
 
   // brighten the sides with neighbors
   if ( injuryBrightness > 32 ) {
@@ -495,3 +437,63 @@ void displayAttack() {
                                  END DISPLAY
    -------------------------------------------------------------------------------------
 */
+
+
+/*
+   -------------------------------------------------------------------------------------
+                                 HELPER FUNCTIONS
+   -------------------------------------------------------------------------------------
+*/
+
+ /*
+   This map() functuion is now in Arduino.h in /dev
+   It is replicated here so this skect can compile on older API commits
+*/
+
+long map_m(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+/*
+   Sin in degrees ( standard sin() takes radians )
+*/
+
+float sin_d( uint16_t degrees ) {
+
+  return sin( ( degrees / 360.0F ) * 2.0F * PI   );
+}
+
+/*
+    Function to return a brightness while breathing based on the period of the breath
+*/
+
+byte breathe(word period_ms, byte minBrightness, byte maxBrightness) {
+
+  byte brightness;
+
+
+  brightness = map_m( 50 * (1 + sin_d( (360 * ((millis() % period_ms)) / (float)period_ms ))), 0, 100, minBrightness, maxBrightness);
+
+  // TODO: if breaths are very short, be sure to focus on the extremes (i.e. light/dark)
+
+  return brightness;
+}
+
+/*
+  get the team color for our team
+*/
+Color teamColor( byte t ) {
+
+  return makeColorHSB(60 + t * 50, 255, 255);
+
+}
+
+byte getGameMode(byte data) {
+  return data & 7;  // 00000111 -> keeps the last 3 digits in binary
+}
+
+byte getGameState(byte data) {
+  return data >> 3; // 00000XXX -> moves all digits to the right 3 times
+}
+
