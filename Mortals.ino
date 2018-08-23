@@ -47,6 +47,9 @@ int health;
 Timer healthTimer;  // Count down to next time we loose a unit of health
 Timer injuryDecayTimer; // Timing to fade away the injury
 
+#define START_DELAY     100
+Timer startTimer;
+
 byte injuryBrightness = 0;
 byte injuredFace;
 
@@ -62,6 +65,16 @@ enum State {
 
 byte mode = DEAD;
 
+enum GameState {
+  PLAY,
+  WAITING,
+  START
+};
+
+byte gameState = PLAY;
+
+byte neighbors[6];
+
 Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we switch back to normal ALIVE.
 // Started when we are injured to make sure we don't get injured multiple times on the same attack
 
@@ -76,15 +89,27 @@ void loop() {
   // Update our mode first
 
   if (buttonDoubleClicked()) {
-    // reset game piece
-    mode = ALIVE;
-    health = INITIAL_HEALTH;
-    healthTimer.set(HEALTH_STEP_TIME_MS);
+    // go into waiting mode
+    changeGameState( WAITING );
+  }
+
+  // TODO: change this to when connected to new neighbor
+  if (buttonMultiClicked()) {
+    if (buttonClickCount() == 3) {
+      changeGameState( START );
+    }
   }
 
   if (buttonLongPressed()) {
     // change team
-    team = (team + 1) % MAX_TEAMS;
+    team = getNextTeam();
+  }
+
+  // get our neighbor data
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      neighbors[f] = getLastValueReceivedOnFace(f);
+    }
   }
 
   if (healthTimer.isExpired()) {
@@ -96,7 +121,7 @@ void loop() {
       //Dead Blinks will also drain life
       FOREACH_FACE(f) {
         if (!isValueReceivedOnFaceExpired(f)) {
-          if (getLastValueReceivedOnFace(f) == DEAD) {
+          if (getGameMode(neighbors[f]) == DEAD) {
             numDeadNeighbors++;
           }
         }
@@ -145,7 +170,7 @@ void loop() {
 
     if (!isValueReceivedOnFaceExpired(f)) {
 
-      byte neighborMode = getLastValueReceivedOnFace(f);
+      byte neighborMode = getGameMode(neighbors[f]);
 
       if ( mode == ATTACKING ) {
 
@@ -195,6 +220,14 @@ void loop() {
     }
   }
 
+  // if we are dead, let's start updating game state
+  if ( mode == DEAD ) {
+    switch (gameState) {
+      case PLAY:     playUpdate();      break;
+      case WAITING:  waitingUpdate();   break;
+      case START:    startUpdate();     break;
+    }
+  }
 
   // Update our display based on new state
 
@@ -221,8 +254,8 @@ void loop() {
       break;
   }
 
-
-  setValueSentOnAllFaces( mode );       // Tell everyone around how we are feeling
+  byte data = gameState << 3 + mode;
+  setValueSentOnAllFaces( data );       // Tell everyone around how we are feeling
 
 }
 
@@ -270,6 +303,93 @@ Color teamColor( byte t ) {
   return makeColorHSB(60 + t * 50, 255, 255);
 
 }
+
+byte getGameMode(byte data) {
+  return data & 7;  // 00000111 -> keeps the last 3 digits in binary
+}
+
+byte getGameState(byte data) {
+  return data >> 3; // 00000XXX -> moves all digits to the right 3 times
+}
+
+
+/*
+   -------------------------------------------------------------------------------------
+                                 START GAME LOGIC
+   -------------------------------------------------------------------------------------
+*/
+void changeGameState(byte state) {
+  switch(state) {
+    case PLAY:          break;
+    case WAITING:       break;
+    case START:   startTimer.set(START_DELAY);  break;
+  }
+  gameState = state;
+}
+
+void startGame() {
+  if (startTimer.isExpired()) {
+    mode = ALIVE;
+    changeGameState( PLAY );
+    health = INITIAL_HEALTH;
+    healthTimer.set(HEALTH_STEP_TIME_MS);
+  }
+}
+
+byte getNextTeam() {
+  return (team + 1) % MAX_TEAMS;
+}
+
+void playUpdate() {
+  // if neighbor is in waiting mode, become waiting
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      if (getGameState(neighbors[f]) == WAITING) {
+        changeGameState( WAITING );
+      }
+    }
+  }
+}
+
+void waitingUpdate() {
+  // if neighbor is in start mode, transition to start mode
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      if (getGameState(neighbors[f]) == START) {
+        changeGameState( START );
+      }
+    }
+  }
+}
+
+void startUpdate() {
+  // if all neighbors are in start
+  bool allReady = true;
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      if (getGameState(neighbors[f]) != START) {
+        allReady = false;
+      }
+    }
+  }
+
+  if (isAlone()) {
+    allReady = false;
+  }
+
+  if (allReady) {
+    startGame();
+  }
+}
+
+/*
+   -------------------------------------------------------------------------------------
+                                 END GAME LOGIC
+   -------------------------------------------------------------------------------------
+*/
+
+
 /*
    -------------------------------------------------------------------------------------
                                  START DISPLAY
@@ -329,10 +449,22 @@ void displayGhost() {
 
   setColor(OFF);
 
-  FOREACH_FACE(f) {
+  // check game state
+  if ( gameState == PLAY ) {
+    FOREACH_FACE(f) {
 
-    setFaceColor(f, dim( RED, 32 + 32 * sin_d( (60 * f + millis() / 8) % 360)));  // slow dim rotation, just take my word for it :)
+      setFaceColor(f, dim( RED, 32 + 32 * sin_d( (60 * f + millis() / 8) % 360)));  // slow dim rotation, just take my word for it :)
 
+    }
+  }
+  else if (gameState == WAITING ) {
+    // odds
+    setFaceColor(1, teamColor( team ));
+    setFaceColor(3, teamColor( team ));
+    setFaceColor(5, teamColor( team ));
+  }
+  else if (gameState == START ) {
+    setColor(WHITE);
   }
 }
 
