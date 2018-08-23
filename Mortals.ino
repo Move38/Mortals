@@ -319,6 +319,7 @@ byte getGameState(byte data) {
    -------------------------------------------------------------------------------------
 */
 void changeGameState(byte state) {
+     
   switch(state) {
     case PLAY:          break;
     case WAITING:       break;
@@ -368,7 +369,7 @@ void startUpdate() {
 
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
-      if (getGameState(neighbors[f]) != START) {
+      if (getGameState(neighbors[f]) != START && getGameState(neighbors[f]) != PLAY) {
         allReady = false;
       }
     }
