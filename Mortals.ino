@@ -245,7 +245,7 @@ void loop() {
       break;
   }
 
-  byte data = gameState << 3 + mode;
+  byte data = (gameState << 3) + mode;
   setValueSentOnAllFaces( data );       // Tell everyone around how we are feeling
 
 }
