@@ -37,9 +37,6 @@
 
 #define MAX_TEAMS                   4
 
-#define COINTOSS_FLIP_DURATION    100   // how long we commit to our cointoss for
-#define GAME_START_DURATION       300   // wait for all teammates to get the signal to start
-
 byte team = 0;
 
 int health;
@@ -59,7 +56,7 @@ byte injuredFace;
 
 byte deathBrightness = 0;
 
-enum State {
+enum Mode {
   DEAD,
   ALIVE,
   ENGUARDE,   // I am ready to attack!
@@ -67,7 +64,11 @@ enum State {
   INJURED
 };
 
-byte mode = DEAD;
+Mode mode = DEAD;
+
+static const char modeChars[] {
+    'D','A','E','A','I',
+};
 
 enum GameState {
   PLAY,
@@ -75,7 +76,18 @@ enum GameState {
   START
 };
 
-byte gameState = PLAY;
+static const char gameStateChars[] {
+    'P','W','S',
+};
+
+
+#ifndef ARDUINO 
+    #include "main.h"
+#endif
+
+#include "Serial.h"
+
+GameState gameState = PLAY;
 
 byte neighbors[6];
 
@@ -83,12 +95,19 @@ Timer modeTimeout;     // Started when we enter ATTACKING, when it expires we sw
 // Started when we are injured to make sure we don't get injured multiple times on the same attack
 
 
+ServicePortSerial sp;
+
 void setup() {
+    sp.begin();
   // perhaps we should initialize everything here to be safe
 }
 
 
 void loop() {
+    
+   sp.write( modeChars[ mode ] );
+   sp.write( gameStateChars[ gameState ] );
+   sp.write('\r');
 
   if (buttonSingleClicked()) {
     if (gameState == WAITING) {
@@ -258,7 +277,7 @@ void loop() {
                                  START GAME LOGIC
    -------------------------------------------------------------------------------------
 */
-void changeGameState(byte state) {
+void changeGameState(GameState state) {
 
   switch (state) {
     case PLAY:          break;
@@ -492,11 +511,12 @@ Color teamColor( byte t ) {
 
 }
 
-byte getGameMode(byte data) {
-  return data & 7;  // 00000111 -> keeps the last 3 digits in binary
+Mode getGameMode(byte data) {
+     
+  return static_cast<Mode>(data & 7);  // 00000111 -> keeps the last 3 digits in binary
 }
 
-byte getGameState(byte data) {
-  return data >> 3; // 00000XXX -> moves all digits to the right 3 times
+GameState getGameState(byte data) {
+  return static_cast<GameState>(data >> 3); // 00000XXX -> moves all digits to the right 3 times
 }
 
