@@ -50,6 +50,10 @@ Timer injuryDecayTimer; // Timing to fade away the injury
 #define START_DELAY     100
 Timer startTimer;
 
+#define WAITING_ANIMATION_DELAY 500
+Timer waitingTimer;
+bool showOdds = false;
+
 byte injuryBrightness = 0;
 byte injuredFace;
 
@@ -86,19 +90,18 @@ void setup() {
 
 void loop() {
 
-  // Update our mode first
-
-  if (buttonDoubleClicked()) {
-    // go into waiting mode
-    changeGameState( WAITING );
-  }
-
-  // TODO: change this to when connected to new neighbor
-  if (buttonMultiClicked()) {
-    if (buttonClickCount() == 3) {
+  if (buttonSingleClicked()) {
+    if (gameState == WAITING) {
       changeGameState( START );
     }
   }
+
+  if (buttonDoubleClicked()) {
+    // reset game and go into waiting mode
+    mode = DEAD;
+    changeGameState( WAITING );
+  }
+
 
   if (buttonLongPressed()) {
     // change team
@@ -210,16 +213,7 @@ void loop() {
       }
     }
   }
-
-  // if we are dead, let's start updating game state
-  if ( mode == DEAD ) {
-    switch (gameState) {
-      case PLAY:     playUpdate();      break;
-      case WAITING:  waitingUpdate();   break;
-      case START:    startUpdate();     break;
-    }
-  }
-
+  
   // Update our display based on new state
 
   switch (mode) {
@@ -243,6 +237,14 @@ void loop() {
     case INJURED:
       displayInjured( injuredFace );
       break;
+  }
+
+  
+  // let's start updating game state
+  switch (gameState) {
+    case PLAY:     playUpdate();      break;
+    case WAITING:  waitingUpdate();   break;
+    case START:    startUpdate();     break;
   }
 
   byte data = (gameState << 3) + mode;
@@ -285,6 +287,7 @@ void playUpdate() {
     if (!isValueReceivedOnFaceExpired(f)) {
       if (getGameState(neighbors[f]) == WAITING) {
         changeGameState( WAITING );
+        mode = DEAD;
       }
     }
   }
@@ -401,10 +404,10 @@ void displayGhost() {
     }
   }
   else if (gameState == WAITING ) {
-    // odds
-    setFaceColor(1, teamColor( team ));
-    setFaceColor(3, teamColor( team ));
-    setFaceColor(5, teamColor( team ));
+
+    setColor( dim(teamColor( team ), 64) );
+    setFaceColor( 1, dim( WHITE, 159 + 96 * sin_d( ( millis() / 4) % 360) ) );
+
   }
   else if (gameState == START ) {
     setColor(WHITE);
@@ -445,9 +448,9 @@ void displayAttack() {
    -------------------------------------------------------------------------------------
 */
 
- /*
-   This map() functuion is now in Arduino.h in /dev
-   It is replicated here so this skect can compile on older API commits
+/*
+  This map() functuion is now in Arduino.h in /dev
+  It is replicated here so this skect can compile on older API commits
 */
 
 long map_m(long x, long in_min, long in_max, long out_min, long out_max)
