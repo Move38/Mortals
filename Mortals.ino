@@ -213,7 +213,7 @@ void loop() {
       }
     }
   }
-  
+
   // Update our display based on new state
 
   switch (mode) {
@@ -239,7 +239,7 @@ void loop() {
       break;
   }
 
-  
+
   // let's start updating game state
   switch (gameState) {
     case PLAY:     playUpdate();      break;
@@ -363,6 +363,16 @@ void displayAlive() {
       deathBrightness -= 8;
     }
   }
+
+  // show the dead sucking life
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) {
+      if (getGameMode(neighbors[f]) == DEAD) {
+        // pulse red on injured face
+        setColorOnFace( dim(RED, breathe(400, 32, 255)), f);
+      }
+    }
+  }
 }
 
 /*
@@ -399,13 +409,13 @@ void displayGhost() {
   if ( gameState == PLAY ) {
     FOREACH_FACE(f) {
 
-      setFaceColor(f, dim( RED, 32 + 32 * sin_d( (60 * f + millis() / 8) % 360)));  // slow dim rotation, just take my word for it :)
+      setFaceColor(f, dim( RED, 64 + 32 * sin_d( (60 * f + millis() / 8) % 360)));  // slow dim rotation, just take my word for it :)
 
     }
   }
   else if (gameState == WAITING ) {
 
-    setColor( dim(teamColor( team ), 64) );
+    setColor( dim(teamColor( team ), 92) );
     setFaceColor( 1, dim( WHITE, 159 + 96 * sin_d( ( millis() / 4) % 360) ) );
 
   }
@@ -432,7 +442,7 @@ void displayAttack() {
 
   setColor( OFF );
 
-  setFaceColor( rand(FACE_COUNT), teamColor( team ) );
+  setFaceColor( random(FACE_COUNT), teamColor( team ) );
 
 }
 /*
@@ -499,4 +509,3 @@ byte getGameMode(byte data) {
 byte getGameState(byte data) {
   return data >> 3; // 00000XXX -> moves all digits to the right 3 times
 }
-
