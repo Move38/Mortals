@@ -364,12 +364,15 @@ void displayAlive() {
     }
   }
 
-  // show the dead sucking life
-  FOREACH_FACE(f) {
-    if (!isValueReceivedOnFaceExpired(f)) {
-      if (getGameMode(neighbors[f]) == DEAD) {
-        // pulse red on injured face
-        setColorOnFace( dim(RED, breathe(400, 32, 255)), f);
+  // don't show the sucking of energy when in the death phase
+  if (deathBrightness == 255) {
+    // show the dead sucking life
+    FOREACH_FACE(f) {
+      if (!isValueReceivedOnFaceExpired(f)) {
+        if (getGameMode(neighbors[f]) == DEAD) {
+          // pulse red on injured face
+          setColorOnFace( dim(RED, breathe(600, 32, 255)), f);
+        }
       }
     }
   }
