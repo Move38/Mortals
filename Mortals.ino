@@ -25,7 +25,7 @@
 */
 
 #define ATTACK_VALUE                5   // Amount of health you loose when attacked.
-#define ATTACK_DURRATION_MS       100   // Time between when we see first new neighbor and when we stop attacking.
+#define ATTACK_DURRATION_MS       500   // Time between when we see first new neighbor and when we stop attacking.
 #define HEALTH_STEP_TIME_MS      1000   // Health decremented by 1 unit this often
 
 #define INJURED_DURRATION_MS      750   // How long we stay injured after we are attacked. Prevents multiple hits on the same attack cycle.
