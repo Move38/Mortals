@@ -184,7 +184,7 @@ void loop() {
           // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
           health = min( health + ATTACK_VALUE , MAX_HEALTH );
-
+          
         }
 
       } else if ( mode == ALIVE ) {
@@ -343,19 +343,36 @@ void startUpdate() {
    Display state for living Mortals
 */
 void displayAlive() {
+  setColor(OFF); 
   if ( health > 50 ) {
     deathBrightness = 255;
-    setColor( dim( teamColor( team ), breathe(6400, 128, 255) ) );
+    //setColor( dim( teamColor( team ), breathe(6400, 128, 255) ) );
+    setColor( teamColor(team));
   } else if ( health <= 50 && health > 40 ) {
-    setColor( dim( teamColor( team ), breathe(3200, 96, 255) ) );
+    //setColor( dim( teamColor( team ), breathe(3200, 96, 255) ) );
+    setColorOnFace(teamColor( team ), 0);
+    setColorOnFace(teamColor( team ), 1);
+    setColorOnFace(teamColor( team ), 2);
+    setColorOnFace(teamColor( team ), 3);
+    setColorOnFace(teamColor( team ), 4);
   } else if ( health <= 40 && health > 30 ) {
-    setColor( dim( teamColor( team ), breathe(1600, 64, 255) ) );
+    //setColor( dim( teamColor( team ), breathe(1600, 64, 255) ) );
+    setColorOnFace(teamColor( team ), 0);
+    setColorOnFace(teamColor( team ), 1);
+    setColorOnFace(teamColor( team ), 2);
+    setColorOnFace(teamColor( team ), 3);
   } else if ( health <= 30 && health > 20 ) {
-    setColor( dim( teamColor( team ), breathe(800, 64, 255) ) );
+    //setColor( dim( teamColor( team ), breathe(800, 64, 255) ) );
+    setColorOnFace(teamColor( team ), 0);
+    setColorOnFace(teamColor( team ), 1);
+    setColorOnFace(teamColor( team ), 2);
   } else if ( health <= 20 && health > 10 ) {
-    setColor( dim( teamColor( team ), breathe(400, 32, 255) ) );
+    //setColor( dim( teamColor( team ), breathe(400, 32, 255) ) );
+    setColorOnFace(teamColor( team ), 0);
+    setColorOnFace(teamColor( team ), 1);
   } else if ( health <= 10 && health > 0 ) {
-    setColor( dim( teamColor( team ), breathe(200, 32, 255) ) );
+    setColorOnFace(teamColor( team ), 0);
+    //setColor( dim( teamColor( team ), breathe(200, 32, 255) ) );
   } else {
     // glow bright white and fade out when we die
     setColor( dim(WHITE, deathBrightness) );
@@ -419,7 +436,7 @@ void displayGhost() {
   else if (gameState == WAITING ) {
 
     setColor( dim(teamColor( team ), 92) );
-    setFaceColor( 1, dim( WHITE, 159 + 96 * sin_d( ( millis() / 4) % 360) ) );
+    setFaceColor( 1, dim( teamColor( team ), 159 + 96 * sin_d( ( millis() / 4) % 360) ) );
 
   }
   else if (gameState == START ) {
@@ -501,8 +518,13 @@ byte breathe(word period_ms, byte minBrightness, byte maxBrightness) {
 */
 Color teamColor( byte t ) {
 
-  return makeColorHSB(60 + t * 50, 255, 255);
-
+  switch (t) {
+    case 0: return MAGENTA;
+    case 1: return GREEN;
+    case 2: return ORANGE;
+    case 3: return BLUE;
+  }
+  //return makeColorHSB(60 + t * 50, 255, 255);
 }
 
 byte getGameMode(byte data) {
