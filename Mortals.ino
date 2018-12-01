@@ -59,6 +59,8 @@ byte injuredFace;
 
 byte deathBrightness = 0;
 
+bool attackSuccess[6];
+
 enum State {
   DEAD,
   ALIVE,
@@ -163,6 +165,11 @@ void loop() {
 
       if (modeTimeout.isExpired()) {
         mode = ALIVE;
+        FOREACH_FACE(f) {
+          if (attackSuccess[f]) {
+            health = min( health + ATTACK_VALUE , MAX_HEALTH );
+          }
+        }
       }
     }
   } // !DEAD
@@ -183,8 +190,7 @@ void loop() {
 
           // TODO: We should really keep a per-face attack timer to lock down the case where we attack the same tile twice in a since interaction.
 
-          health = min( health + ATTACK_VALUE , MAX_HEALTH );
-          
+          attackSuccess[f] = true;
         }
 
       } else if ( mode == ALIVE ) {
@@ -223,6 +229,7 @@ void loop() {
       break;
 
     case ALIVE:
+      resetAttackSuccess();
       displayAlive();
       break;
 
@@ -325,6 +332,12 @@ void startUpdate() {
   }
 }
 
+void resetAttackSuccess() {
+  FOREACH_FACE(f) {
+    attackSuccess[f] = false;
+  }
+}
+
 /*
    -------------------------------------------------------------------------------------
                                  END GAME LOGIC
@@ -343,7 +356,7 @@ void startUpdate() {
    Display state for living Mortals
 */
 void displayAlive() {
-  setColor(OFF); 
+  setColor(OFF);
   if ( health > 50 ) {
     deathBrightness = 255;
     //setColor( dim( teamColor( team ), breathe(6400, 128, 255) ) );
