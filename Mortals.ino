@@ -359,11 +359,9 @@ void displayAlive() {
   setColor(OFF);
   FOREACH_FACE(f) {
 
-    if ( f < (health / 10) ) {
+    if ( f <=  (health / 10) ) {
       // show health on the number of faces to represent 10 health for each light
       setColorOnFace(teamColor( team ), f);
-      deathBrightness = 255;
-
     }
     else {
       // turn out the lights on faces to show a loss of health over time
@@ -371,7 +369,7 @@ void displayAlive() {
     }
   }
 
-  if (health == 0 ) {
+  if (health <= 0 ) {
 
     // glow bright white and fade out when we die
     setColor( dim(WHITE, deathBrightness) );
@@ -393,7 +391,7 @@ void displayAlive() {
           // pulse red on injured face
           byte bri = breathe(600, 32, 255);
 
-          if ( f < (health / 10) ) {
+          if ( f <= (health / 10) ) {
             // if the tile is alive and showing life on this face, alternate red and team color
             if ( (millis() / 600) % 2 == 0 ) {
               setColorOnFace( dim(RED, bri), f);
@@ -457,7 +455,8 @@ void displayGhost() {
 
   }
   else if (gameState == START ) {
-    setColor(WHITE);
+    setColor(WHITE);  // quick flash of white to start the game (only a single frame)
+    deathBrightness = 255;  // reset the death brightness
   }
 }
 
