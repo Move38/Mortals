@@ -357,36 +357,17 @@ void resetAttackSuccess() {
 */
 void displayAlive() {
   setColor(OFF);
-  if ( health > 50 ) {
-    deathBrightness = 255;
-    //setColor( dim( teamColor( team ), breathe(6400, 128, 255) ) );
-    setColor( teamColor(team));
-  } else if ( health <= 50 && health > 40 ) {
-    //setColor( dim( teamColor( team ), breathe(3200, 96, 255) ) );
-    setColorOnFace(teamColor( team ), 0);
-    setColorOnFace(teamColor( team ), 1);
-    setColorOnFace(teamColor( team ), 2);
-    setColorOnFace(teamColor( team ), 3);
-    setColorOnFace(teamColor( team ), 4);
-  } else if ( health <= 40 && health > 30 ) {
-    //setColor( dim( teamColor( team ), breathe(1600, 64, 255) ) );
-    setColorOnFace(teamColor( team ), 0);
-    setColorOnFace(teamColor( team ), 1);
-    setColorOnFace(teamColor( team ), 2);
-    setColorOnFace(teamColor( team ), 3);
-  } else if ( health <= 30 && health > 20 ) {
-    //setColor( dim( teamColor( team ), breathe(800, 64, 255) ) );
-    setColorOnFace(teamColor( team ), 0);
-    setColorOnFace(teamColor( team ), 1);
-    setColorOnFace(teamColor( team ), 2);
-  } else if ( health <= 20 && health > 10 ) {
-    //setColor( dim( teamColor( team ), breathe(400, 32, 255) ) );
-    setColorOnFace(teamColor( team ), 0);
-    setColorOnFace(teamColor( team ), 1);
-  } else if ( health <= 10 && health > 0 ) {
-    setColorOnFace(teamColor( team ), 0);
-    //setColor( dim( teamColor( team ), breathe(200, 32, 255) ) );
-  } else {
+  FOREACH_FACE(f) {
+    if ( f < (health / 10) ) {
+      setColorOnFace(teamColor( team ), f);
+      deathBrightness = 255;
+    }
+    else {
+      setColorOnFace(OFF, f);
+    }
+  }
+
+  if (health == 0 ) {
     // glow bright white and fade out when we die
     setColor( dim(WHITE, deathBrightness) );
     if (deathBrightness > 7) {
