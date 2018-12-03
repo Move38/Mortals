@@ -358,18 +358,24 @@ void resetAttackSuccess() {
 void displayAlive() {
   setColor(OFF);
   FOREACH_FACE(f) {
+
     if ( f < (health / 10) ) {
+      // show health on the number of faces to represent 10 health for each light
       setColorOnFace(teamColor( team ), f);
       deathBrightness = 255;
+
     }
     else {
+      // turn out the lights on faces to show a loss of health over time
       setColorOnFace(OFF, f);
     }
   }
 
   if (health == 0 ) {
+
     // glow bright white and fade out when we die
     setColor( dim(WHITE, deathBrightness) );
+
     if (deathBrightness > 7) {
       deathBrightness -= 8;
     }
@@ -379,10 +385,27 @@ void displayAlive() {
   if (deathBrightness == 255) {
     // show the dead sucking life
     FOREACH_FACE(f) {
+
       if (!isValueReceivedOnFaceExpired(f)) {
+
         if (getGameMode(neighbors[f]) == DEAD) {
+
           // pulse red on injured face
-          setColorOnFace( dim(RED, breathe(600, 32, 255)), f);
+          byte bri = breathe(600, 32, 255);
+
+          if ( f < (health / 10) ) {
+            // if the tile is alive and showing life on this face, alternate red and team color
+            if ( (millis() / 600) % 2 == 0 ) {
+              setColorOnFace( dim(RED, bri), f);
+            }
+            else {
+              setColorOnFace( dim( teamColor( team ), bri), f);
+            }
+          }
+          else {
+            // else show red
+            setColorOnFace( dim(RED, bri), f);
+          }
         }
       }
     }
