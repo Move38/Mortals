@@ -1,17 +1,16 @@
 /*
   Mortals for Blinks
 
-   Setup: 2 player game. Tiles die slowly over time, all at the same rate.
-   Moving a single tile to a new place allows it to suck life from
-   surrounding tiles, friend or foe.
+   Setup: 2 player game. Create 2 teams – switch team by holding down until color changes (~3s)
 
-   Blinks start with 60 seconds of life
+   Each Blink starts with 60 seconds of life.
 
-   When a tile is moved alone, it sucks 5 seconds of health from each one of
-   its newly found neighbors. A non-moved neighbor with a new neighbor looses 5 seconds
-   and animates in the direction it lost the life (i.e. where the neighbor showed up)
+   When a tile is moved alone, it sucks 5 seconds of health from the neighbors it
+   attaches to. This attacked neighbor looses 5 seconds
+   and shows its injured side (i.e. where the neighbor showed up)
 
-    Tiles resets health to full when triple press occurs
+   Blinks reset game when double clicked
+   Blinks start game with single click on any Blink
 
      States for game piece.
      Alive/Dead
@@ -19,9 +18,6 @@
      Attack, Injured
 
    Technical Details:
-   A long press on the tile changes the color of the tile for prototyping (switch state 1 or 2)
-
-
 */
 
 #define ATTACK_VALUE                5   // Amount of health you loose when attacked.
