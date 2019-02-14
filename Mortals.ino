@@ -73,7 +73,7 @@ enum GameState {
   START
 };
 
-byte gameState = PLAY;
+byte gameState = WAITING;
 
 byte neighbors[6];
 
@@ -358,6 +358,7 @@ void displayAlive() {
     if ( f <=  (health / 10) ) {
       // show health on the number of faces to represent 10 health for each light
       setColorOnFace(teamColor( team ), f);
+      // TODO: FLASH the last 10 seconds of life
     }
     else {
       // turn out the lights on faces to show a loss of health over time
