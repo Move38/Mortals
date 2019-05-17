@@ -85,7 +85,7 @@ void setup() {
 
 
 void loop() {
-  // TODO: onWake() reset the bChangeTeam to false
+  // discard team change from force sleep
   if(hasWoken()) {
     bChangeTeam = false;
   }
