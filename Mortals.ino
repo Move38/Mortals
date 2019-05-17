@@ -46,16 +46,14 @@ Timer injuryDecayTimer; // Timing to fade away the injury
 #define START_DELAY     100
 Timer startTimer;
 
-#define WAITING_ANIMATION_DELAY 500
-Timer waitingTimer;
-bool showOdds = false;
-
 byte injuryBrightness = 0;
 byte injuredFace;
 
 byte deathBrightness = 0;
 
 bool attackSuccess[6];
+
+bool bChangeTeam = false;
 
 enum State {
   DEAD,
@@ -87,6 +85,10 @@ void setup() {
 
 
 void loop() {
+  // TODO: onWake() reset the bChangeTeam to false
+  if(hasWoken()) {
+    bChangeTeam = false;
+  }
 
   if (buttonSingleClicked()) {
     if (gameState == WAITING) {
@@ -103,7 +105,15 @@ void loop() {
 
   if (buttonLongPressed()) {
     // change team
-    team = getNextTeam();
+    bChangeTeam = true;
+  }
+
+  if(buttonReleased()) {
+    if(bChangeTeam) {
+      // now change the team
+      team = getNextTeam();
+      bChangeTeam = false;
+    }
   }
 
   // get our neighbor data
@@ -250,6 +260,18 @@ void loop() {
     case START:    startUpdate();     break;
   }
 
+  if(bChangeTeam) {
+    // display a team change signal
+    FOREACH_FACE(f){
+      if(f<3) {
+        setColorOnFace(teamColor(team),f);
+      }
+      else {
+        setColorOnFace(teamColor(getNextTeam()),f);
+      }
+    }
+  }
+
   byte data = (gameState << 3) + mode;
   setValueSentOnAllFaces( data );       // Tell everyone around how we are feeling
 
@@ -386,7 +408,8 @@ void displayAlive() {
         if (getGameMode(neighbors[f]) == DEAD) {
 
           // pulse red on injured face
-          byte bri = breathe(600, 32, 255);
+          // TODO: Create a pulse algorithm that is less memory intensive
+          byte bri = 143 + (111 * sin_d(millis()));//breathe(600, 32, 255);
 
           if ( f <= (health / 10) ) {
             // if the tile is alive and showing life on this face, alternate red and team color
@@ -492,16 +515,6 @@ void displayAttack() {
 */
 
 /*
-  This map() functuion is now in Arduino.h in /dev
-  It is replicated here so this skect can compile on older API commits
-*/
-
-long map_m(long x, long in_min, long in_max, long out_min, long out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-/*
    Sin in degrees ( standard sin() takes radians )
 */
 
@@ -511,33 +524,15 @@ float sin_d( uint16_t degrees ) {
 }
 
 /*
-    Function to return a brightness while breathing based on the period of the breath
-*/
-
-byte breathe(word period_ms, byte minBrightness, byte maxBrightness) {
-
-  byte brightness;
-
-
-  brightness = map_m( 50 * (1 + sin_d( (360 * ((millis() % period_ms)) / (float)period_ms ))), 0, 100, minBrightness, maxBrightness);
-
-  // TODO: if breaths are very short, be sure to focus on the extremes (i.e. light/dark)
-
-  return brightness;
-}
-
-/*
   get the team color for our team
 */
 Color teamColor( byte t ) {
-
   switch (t) {
     case 0: return MAGENTA;
     case 1: return GREEN;
     case 2: return ORANGE;
     case 3: return BLUE;
   }
-  //return makeColorHSB(60 + t * 50, 255, 255);
 }
 
 byte getGameMode(byte data) {
