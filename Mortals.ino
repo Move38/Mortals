@@ -90,16 +90,14 @@ void loop() {
     bChangeTeam = false;
   }
 
-  if (buttonSingleClicked()) {
+  if (buttonDoubleClicked()) {
     if (gameState == WAITING) {
       changeGameState( START );
+    } else {
+      // reset game and go into waiting mode
+      mode = DEAD;
+      changeGameState( WAITING );
     }
-  }
-
-  if (buttonDoubleClicked()) {
-    // reset game and go into waiting mode
-    mode = DEAD;
-    changeGameState( WAITING );
   }
 
 
