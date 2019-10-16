@@ -139,7 +139,19 @@ void loop() {
       }
 
       //Remove extra health for every dead neighbor attached
-      health = (health - 1) - numDeadNeighbors;
+      if((health - 1) - numDeadNeighbors < 0) {
+        health = 0;
+      }
+      else {
+        health = (health - 1) - numDeadNeighbors;        
+      }
+
+      // a tax for remaining in ENGUARDE mode...
+      if (mode == ENGUARDE && health > 0) {
+        health--;
+      }
+
+      // ready for next health step
       healthTimer.set(HEALTH_STEP_TIME_MS);
 
     } else {
