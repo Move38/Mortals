@@ -348,10 +348,6 @@ void startUpdate() {
     }
   }
 
-  if (isAlone()) {
-    allReady = false;
-  }
-
   if (allReady) {
     startGame();
   }
